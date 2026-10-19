@@ -1,12 +1,15 @@
-
 /* FilamentFlow v1
  * Part 1: pure calculation functions (no page access, easy to test and reuse).
  * Part 2: page wiring (only runs in a browser).
  */
 
-// Backend settings (NOT used yet; see "Connecting a backend" in README.md).
-// The anon (public) key is designed to be visible in the browser. NEVER put a service_role key here.
-const FF_CONFIG = { SUPABASE_URL: 'https://uiydxoajlzxmxuewkezi.supabase.co', SUPABASE_ANON_KEY: 'sb_publishable_QEzWH4F1CVBnsFnFrUf0Mw_3Gnt5S9r' };
+// Supabase settings. The publishable key (sb_publishable_...) is designed to be visible in the browser.
+// NEVER put a secret key (sb_secret_...) or service_role key here.
+const FF_CONFIG = {
+  SUPABASE_URL: 'https://uiydxoajlzxmxuewkezi.supabase.co',
+  SUPABASE_ANON_KEY: 'sb_publishable_QEzWH4F1CVBnsFnFrUf0Mw_3Gnt5S9r'
+};
+const FF_BUILD = 'build 3';
 
 /* ---------- Part 1: calculations ---------- */
 
@@ -358,10 +361,21 @@ window.FFLibrary = { show: show };
  * database (see README.md); hiding buttons here is only a convenience. */
 if (typeof document !== 'undefined') (function () {
   const $ = (id) => document.getElementById(id);
-  const sb = (FF_CONFIG.SUPABASE_URL && FF_CONFIG.SUPABASE_ANON_KEY && window.supabase)
-    ? window.supabase.createClient(FF_CONFIG.SUPABASE_URL, FF_CONFIG.SUPABASE_ANON_KEY,
-        { auth: { flowType: 'pkce', persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } })
+  // One client only, created once. Whitespace is trimmed because a stray space or line break in a pasted key causes "Invalid API key".
+  const url = String(FF_CONFIG.SUPABASE_URL || '').trim().replace(/\/+$/, '');
+  const key = String(FF_CONFIG.SUPABASE_ANON_KEY || '').trim();
+  const secretKey = key.indexOf('sb_secret_') === 0;
+  const sb = (url && key && !secretKey && window.supabase)
+    ? window.supabase.createClient(url, key, { auth: { flowType: 'pkce', persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } })
     : null;
+  let keyNote = secretKey ? 'This is a SECRET key. Never use it in a website. Use the Publishable key instead, and rotate the secret key in Supabase now.' : '';
+  console.info('FilamentFlow ' + FF_BUILD + ' | Supabase URL: ' + url + ' | key starts: ' + key.slice(0, 16) + '… (' + key.length + ' chars) | library loaded: ' + Boolean(window.supabase));
+  // Independent check that does not use the Supabase library: asks Supabase's auth server for its settings using only this key.
+  if (sb) fetch(url + '/auth/v1/settings', { headers: { apikey: key } }).then(function (r) {
+    console.info('FilamentFlow key check: HTTP ' + r.status);
+    if (r.status === 401 || r.status === 403) keyNote = 'Supabase rejected the public key in script.js (HTTP ' + r.status + '). Copy the Publishable key again from Project Settings → API Keys for project uiydxoajlzxmxuewkezi, with no spaces, and re-upload script.js.';
+    updateBanner();
+  }).catch(function () { console.info('FilamentFlow key check: could not reach Supabase'); });
   let user = null, profile = null, ready = !sb, returnTo = '#/', pendingMsg = '';
   const redirectUrl = () => location.origin + location.pathname;
 
@@ -373,6 +387,7 @@ if (typeof document !== 'undefined') (function () {
   }
   function friendly(err) {
     const msg = ((err && err.message) || '').toLowerCase(), code = err && err.code;
+    if (msg.includes('invalid api key')) return 'Supabase rejected this site’s public key (Invalid API key). See the notice at the top of this page and the troubleshooting section in README.md.';
     if (msg.includes('invalid login')) return 'Email or password is incorrect.';
     if (msg.includes('not confirmed')) return 'Please confirm your email first. Check your inbox for the link.';
     if (code === 'weak_password' || msg.includes('password should')) return 'That password is too weak. Use at least 8 characters with letters and numbers.';
@@ -502,6 +517,16 @@ if (typeof document !== 'undefined') (function () {
 
   // --- called by the page switcher ---
   const TITLES = { signin: 'Sign in', register: 'Create account', forgot: 'Reset your password', reset: 'Choose a new password' };
+  function updateBanner() {
+    const banner = $('authBanner');
+    if (!banner) return;
+    banner.hidden = false;
+    if (keyNote) banner.textContent = keyNote;
+    else if (!url || !key) banner.textContent = 'Accounts are not connected yet. Add your Supabase project URL and public key to FF_CONFIG at the top of script.js (see README.md).';
+    else if (!window.supabase) banner.textContent = 'The Supabase library did not load (check your internet connection or an ad blocker), so accounts cannot work.';
+    else if (location.protocol === 'file:') banner.textContent = 'You opened this as a local file. Sign-in may work, but email links (confirm, reset) need the published site or a local web server (see README.md).';
+    else banner.hidden = true;
+  }
   function guard(view) {
     if ((view === 'account' || view === 'dashboard') && ready && !user) {
       pendingMsg = 'Sign in to continue.';
@@ -517,11 +542,7 @@ if (typeof document !== 'undefined') (function () {
       $('authTitle').textContent = TITLES[sub];
       say('authMsg', pendingMsg, 'err');
       pendingMsg = '';
-      const banner = $('authBanner');
-      banner.hidden = false;
-      if (!sb) banner.textContent = 'Accounts are not connected yet, so nothing on this page works. Add your Supabase project URL and public key to FF_CONFIG at the top of script.js (see README.md).';
-      else if (location.protocol === 'file:') banner.textContent = 'You opened this as a local file. Sign-in may work, but email links (confirm, reset) need the published site or a local web server (see README.md).';
-      else banner.hidden = true;
+      updateBanner();
       document.querySelectorAll('form[data-form] button[type=submit]').forEach(function (b) { b.disabled = !sb; });
       if (user && sub !== 'reset') location.hash = returnTo;
     }

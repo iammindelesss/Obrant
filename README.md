@@ -30,7 +30,7 @@ Double-click `index.html`. It opens in your browser and needs no server or insta
 1. In the repository, open **Settings → Pages**.
 2. Under **Build and deployment**, set **Source** to **Deploy from a branch**.
 3. Choose branch **main** and folder **/ (root)**, then click **Save**.
-4. Wait a minute or two. The page shows your address: `https://iammindelesss.github.io/filamentflow/`.
+4. Wait a minute or two. The site is at `https://iammindelesss.github.io/filamentflow/`.
 
 ## Update the site after changes
 
@@ -60,11 +60,11 @@ The calculation functions at the top of `script.js` do not touch the page, so yo
 
 The sign-in, create-account, forgot/reset password, profile and account-menu screens are built, and `script.js` contains the code that talks to Supabase. **It has not been connected to a real Supabase project or tested against one**, so treat registration and sign-in as unverified until you finish the steps below and test them yourself.
 
-Security notes: passwords are handled only by Supabase (the site never sees or stores them). The key you paste into `script.js` is the public "anon/publishable" key, which is designed to be visible. **Never paste the `service_role` key anywhere in this project.** Real protection comes from the Row Level Security rules in step 3, not from hidden buttons.
+Security notes: passwords are handled only by Supabase (the site never sees or stores them). The key you paste into `script.js` is the public "publishable" key, which is designed to be visible. **Never paste the `service_role` key anywhere in this project.** Real protection comes from the Row Level Security rules in step 3, not from hidden buttons.
 
 ### 1. Create the project
 1. Create a free project at supabase.com.
-2. In **Project Settings → API**, copy the **Project URL** and the **anon / publishable key**.
+2. In **Project Settings → API**, copy the **Project URL** and the **Publishable key** (`sb_publishable_...`).
 3. Paste them into `FF_CONFIG` at the top of `script.js`.
 
 ### 2. Authentication settings
@@ -123,6 +123,14 @@ Serve the folder locally (`python3 -m http.server 8000` inside it, then open htt
 6. In the SQL editor or with a second account, confirm one user cannot change another user's profile.
 
 Password-reset and confirmation links only work from the published site or a local web server, not from a double-clicked file.
+
+### Troubleshooting: "Invalid API key"
+1. **Test the key without the website.** Paste this into your browser address bar:
+   `https://uiydxoajlzxmxuewkezi.supabase.co/auth/v1/settings?apikey=sb_publishable_QEzWH4F1CVBnsFnFrUf0Mw_3Gnt5S9r`
+   If you see a block of settings text, the key is valid. If you see `Invalid API key`, the key (or project) is wrong: copy the Publishable key again from **Project Settings → API Keys** for this exact project.
+2. **Check you are running the new files.** Open the site, press F12, open the **Console** tab and hard-refresh (Ctrl+Shift+R). You should see a line starting `FilamentFlow build 3` and `key check: HTTP 200`. If you don't see "build 3", GitHub is still serving old files: re-upload all four and wait a couple of minutes.
+3. Keys must be pasted with no spaces or line breaks, and never use the `sb_secret_` key in the website.
+4. If you rotated or deleted keys in Supabase, copy the current Publishable key again.
 
 ### Not built yet
 Model uploads, real listings from the database, saving favourites, reporting, an admin role and the 3D viewer. The creator dashboard and the "save" button are placeholders until listings come from the database.
