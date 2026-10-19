@@ -6,7 +6,7 @@
 
 // Backend settings (NOT used yet; see "Connecting a backend" in README.md).
 // The anon (public) key is designed to be visible in the browser. NEVER put a service_role key here.
-const FF_CONFIG = { SUPABASE_URL: 'https://uiydxoajlzxmxuewkezi.supabase.co', SUPABASE_ANON_KEY: 'sb_publishable_lXWao4fcX4LZCtWfogwAwA_G_K_Q-bJZ' };
+const FF_CONFIG = { SUPABASE_URL: 'https://uiydxoajlzxmxuewkezi.supabase.co', SUPABASE_ANON_KEY: 'sb_publishable_QEzWH4F1CVBnsFnFrUf0Mw_3Gnt5S9r' };
 
 /* ---------- Part 1: calculations ---------- */
 
