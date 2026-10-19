@@ -3,27 +3,80 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>FilamentFlow – 3D-printing cost calculator</title>
-<meta name="description" content="Free 3D-printing cost calculator: filament, electricity, other costs, selling price and profit. Runs in your browser and uploads nothing.">
+<title>FilamentFlow – 3D-printing platform</title>
+<meta name="description" content="FilamentFlow: browse 3D-printable models, price your prints, and (soon) discover printed products.">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<a class="skip" href="#calculator">Skip to calculator</a>
-
+<a class="skip" href="#main">Skip to content</a>
 <header class="site-header">
   <div class="wrap bar">
-    <a class="brand" href="#top">FilamentFlow</a>
+    <a class="brand" href="#/">FilamentFlow</a>
     <button class="menu-btn" id="menuBtn" type="button" aria-expanded="false" aria-controls="nav">Menu</button>
     <nav id="nav" class="nav" aria-label="Main">
-      <a href="#calculator">Calculator</a>
-      <a href="#how">How it works</a>
-      <a href="#roadmap">Roadmap</a>
-      <a href="#privacy">Privacy</a>
+      <a href="#/library" data-link="library">Model Library</a>
+      <a href="#/calculator" data-link="calculator">Print Calculator</a>
+      <a href="#/shop" data-link="shop">Print Shop <span class="badge">Soon</span></a>
     </nav>
   </div>
 </header>
 
-<main id="top">
+<main id="main">
+<!-- ===== HOME ===== -->
+<div data-view="home">
+  <section class="hero">
+    <div class="wrap">
+      <h1>Find it. Print it. Price it.</h1>
+      <p>FilamentFlow is a growing home for 3D printing: a model library, a print cost calculator, and a future shop for printed products. Pick where to start.</p>
+    </div>
+  </section>
+  <section class="wrap tiles" aria-label="Sections">
+    <a class="tile" href="#/library">
+      <span class="status">Demo listings</span>
+      <h2>Model Library</h2>
+      <p>Browse, search and filter 3D-printable models. Uploads and accounts need a backend that isn’t connected yet, so today’s listings are samples.</p>
+      <span class="go">Open library →</span>
+    </a>
+    <a class="tile" href="#/calculator">
+      <span class="status ok">Working</span>
+      <h2>Print Calculator</h2>
+      <p>Work out filament, electricity and other costs, then set a selling price and see your real profit margin.</p>
+      <span class="go">Open calculator →</span>
+    </a>
+    <a class="tile" href="#/shop">
+      <span class="status">Coming soon</span>
+      <h2>Print Shop</h2>
+      <p>A planned place to discover physical products made by 3D-printing creators. Nothing can be ordered yet.</p>
+      <span class="go">See the plan →</span>
+    </a>
+  </section>
+</div>
+
+<!-- ===== MODEL LIBRARY ===== -->
+<div data-view="library" hidden><div class="wrap page"><h1>Model Library</h1>
+  <p class="demo">Demo data: these are sample listings with no real files. Uploads, accounts and premium purchases are not connected yet (see README.md).</p>
+  <div id="listView">
+    <div class="toolbar">
+      <label class="sr" for="q">Search models</label>
+      <input id="q" type="search" placeholder="Search name, description or tag">
+      <label class="sr" for="cat">Category</label>
+      <select id="cat"><option value="all">All categories</option></select>
+      <label class="sr" for="sort">Sort by</label>
+      <select id="sort">
+        <option value="newest">Newest</option>
+        <option value="free">Free first</option>
+        <option value="premium">Premium first</option>
+        <option disabled>Most popular (needs live data)</option>
+      </select>
+    </div>
+    <p class="count" id="count" aria-live="polite"></p>
+    <div class="model-grid" id="grid"></div>
+    <p class="empty" id="empty" hidden>No models match your search. Try a different word or category.</p>
+  </div>
+  <article id="detailView" hidden></article></div></div>
+
+<!-- ===== PRINT CALCULATOR ===== -->
+<div data-view="calculator" hidden>
   <section class="wrap intro">
     <h1>Know what each print really costs.</h1>
     <p>Work out material, power and extra costs for a 3D print, then set a selling price and see your real profit margin. Everything is calculated in your browser.</p>
@@ -80,12 +133,12 @@
           <div class="control"><input id="kwhPrice" type="number" inputmode="decimal" step="any" min="0"></div>
           <p class="err" id="err-kwhPrice"></p>
         </div>
-        <p class="note">Electricity cost = (watts ÷ 1000) × hours × price per kWh. Real consumption varies by printer, material, bed temperature and room conditions, so treat this as an estimate.</p>
+        <p class="note">Electricity cost = (watts ÷ 1000) × hours × price per kWh. Enter 0 in any of these to leave electricity out of the calculation. Real consumption varies by printer, material, bed temperature and room conditions, so treat this as an estimate.</p>
       </fieldset>
 
       <fieldset class="card">
         <legend>3. Other costs</legend>
-        <p class="note">Per print. Zero is fine.</p>
+        <p class="note">Per print. Enter 0 to leave a cost out of the calculation.</p>
         <div class="field">
           <label for="maintenance">Maintenance <span class="cur">NZD</span>
             <button type="button" class="tip" data-tip="Your share of wear and upkeep per print: nozzles, belts, build plates." aria-label="About maintenance">?</button></label>
@@ -181,9 +234,24 @@
     <h2>Privacy</h2>
     <p>No account, no server, no tracking. Calculations run in your browser. Your inputs are saved in this browser’s local storage so they are there next time; “Reset to defaults” clears them.</p>
   </section>
+</div>
+
+<!-- ===== PRINT SHOP ===== -->
+<div data-view="shop" hidden><div class="wrap page"><p class="status">Coming soon</p>
+  <h1>Print Shop</h1>
+  <p class="lead">The plan is a marketplace where people can order physical 3D-printed products from creators. <strong>None of this exists yet</strong>: there is no checkout, no ordering and no shipping.</p>
+  <div class="card">
+    <h2>Planned, not built</h2>
+    <ul class="plain">
+      <li>Product listings with variations such as colour and material</li>
+      <li>Orders and creator fulfilment, with order status tracking</li>
+      <li>Shipping estimates from the nearest suitable print location, once real locations and shipping data exist</li>
+    </ul>
+  </div>
+  <p><a class="btn" href="#/calculator">Price a print in the calculator</a> <a class="btn" href="#/library">Browse models</a></p></div></div>
 </main>
 
-<footer class="site-footer"><div class="wrap">FilamentFlow v1 · Estimates only, not financial advice.</div></footer>
+<footer class="site-footer"><div class="wrap">FilamentFlow · Everything runs in your browser. No accounts or tracking yet. Estimates only, not financial advice.</div></footer>
 
 <script src="script.js"></script>
 </body>
