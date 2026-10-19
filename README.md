@@ -30,7 +30,7 @@ Double-click `index.html`. It opens in your browser and needs no server or insta
 1. In the repository, open **Settings → Pages**.
 2. Under **Build and deployment**, set **Source** to **Deploy from a branch**.
 3. Choose branch **main** and folder **/ (root)**, then click **Save**.
-4. Wait a minute or two. The page shows your address: `https://YOUR-USERNAME.github.io/filamentflow/`.
+4. Wait a minute or two. The page shows your address: `https://iammindelesss.github.io/filamentflow/`.
 
 ## Update the site after changes
 
