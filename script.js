@@ -319,6 +319,13 @@ function renderDetail(m) {
       ? 'Demo listing. Checkout and secure file delivery are not built yet, so nothing can be bought.'
       : 'Demo listing with no real file attached.'));
   }
+  if (window.FFAuth && window.FFAuth.user()) {
+    const sv = el('button', 'btn', 'Save (works once listings come from the database)');
+    sv.disabled = true; sv.style.marginTop = '12px'; side.appendChild(sv);
+  } else {
+    const sl = el('a', 'btn', 'Sign in to save models');
+    sl.href = '#/auth/signin'; sl.style.marginTop = '12px'; side.appendChild(sl);
+  }
   const rep = el('button', 'btn', 'Report this model (needs backend)');
   rep.disabled = true;
   rep.style.marginTop = '12px';
@@ -344,23 +351,226 @@ renderList();
 window.FFLibrary = { show: show };
 })();
 
+/* ---------- Part 5: accounts (Supabase Auth) ----------
+ * Uses the official Supabase client (loaded in index.html). Passwords are handled by Supabase, never by this code.
+ * Sessions persist in the browser via the Supabase client. Security is enforced by Row Level Security in the
+ * database (see README.md); hiding buttons here is only a convenience. */
+if (typeof document !== 'undefined') (function () {
+  const $ = (id) => document.getElementById(id);
+  const sb = (FF_CONFIG.SUPABASE_URL && FF_CONFIG.SUPABASE_ANON_KEY && window.supabase)
+    ? window.supabase.createClient(FF_CONFIG.SUPABASE_URL, FF_CONFIG.SUPABASE_ANON_KEY,
+        { auth: { flowType: 'pkce', persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } })
+    : null;
+  let user = null, profile = null, ready = !sb, returnTo = '#/', pendingMsg = '';
+  const redirectUrl = () => location.origin + location.pathname;
+
+  function say(id, text, kind) {
+    const m = $(id);
+    m.textContent = text || '';
+    m.hidden = !text;
+    m.className = 'msg ' + (kind || '');
+  }
+  function friendly(err) {
+    const msg = ((err && err.message) || '').toLowerCase(), code = err && err.code;
+    if (msg.includes('invalid login')) return 'Email or password is incorrect.';
+    if (msg.includes('not confirmed')) return 'Please confirm your email first. Check your inbox for the link.';
+    if (code === 'weak_password' || msg.includes('password should')) return 'That password is too weak. Use at least 8 characters with letters and numbers.';
+    if (code === 'over_email_send_rate_limit' || msg.includes('rate limit')) return 'Too many requests. Please wait a few minutes and try again.';
+    if (msg.includes('failed to fetch')) return 'Could not reach the server. Check your connection and the project URL in script.js.';
+    return 'Something went wrong: ' + ((err && err.message) || 'unknown error');
+  }
+  function passwordProblem(pw, pw2) {
+    if (pw.length < 8) return 'Password must be at least 8 characters.';
+    if (!/[A-Za-z]/.test(pw) || !/[0-9]/.test(pw)) return 'Password needs at least one letter and one number.';
+    if (pw !== pw2) return 'The two passwords do not match.';
+    return '';
+  }
+  const busy = (form, on) => { form.querySelector('button[type=submit]').disabled = on || !sb; };
+
+  function renderAcct() {
+    document.body.dataset.auth = user ? 'in' : 'out';
+    if (!user) return;
+    $('acctName').textContent = (profile && profile.username) || (user.email || 'Account').split('@')[0];
+    $('acctEmail').textContent = 'Signed in as ' + user.email;
+  }
+  function fillProfile() {
+    $('username').value = (profile && profile.username) || '';
+    $('bio').value = (profile && profile.bio) || '';
+    const url = profile && profile.avatar_url;
+    const ok = typeof url === 'string' && url.indexOf('https://') === 0;
+    $('avatarImg').hidden = !ok;
+    $('avatarPh').hidden = ok;
+    if (ok) $('avatarImg').src = url;
+  }
+  async function loadProfile() {
+    if (!sb || !user) return;
+    const res = await sb.from('profiles').select('username,bio,avatar_url').eq('id', user.id).maybeSingle();
+    if (res.error) { say('profMsg', 'Could not load your profile: ' + res.error.message, 'err'); return; }
+    profile = res.data || {};
+    fillProfile();
+    renderAcct();
+  }
+
+  // --- forms ---
+  $('formSignin').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    const email = $('siEmail').value.trim(), pw = $('siPass').value;
+    if (!email || !pw) { say('authMsg', 'Enter your email and password.', 'err'); return; }
+    busy(e.target, true);
+    const res = await sb.auth.signInWithPassword({ email: email, password: pw });
+    busy(e.target, false);
+    if (res.error) { say('authMsg', friendly(res.error), 'err'); return; }
+    $('siPass').value = '';
+    say('authMsg', '');
+    location.hash = returnTo;
+  });
+  $('formRegister').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    const email = $('rgEmail').value.trim(), pw = $('rgPass').value;
+    if (!/^\S+@\S+\.\S+$/.test(email)) { say('authMsg', 'Enter a valid email address.', 'err'); return; }
+    const problem = passwordProblem(pw, $('rgPass2').value);
+    if (problem) { say('authMsg', problem, 'err'); return; }
+    busy(e.target, true);
+    const res = await sb.auth.signUp({ email: email, password: pw, options: { emailRedirectTo: redirectUrl() } });
+    busy(e.target, false);
+    if (res.error) { say('authMsg', friendly(res.error), 'err'); return; }
+    if (res.data.user && res.data.user.identities && res.data.user.identities.length === 0) {
+      say('authMsg', 'An account with this email already exists. Try signing in, or reset your password.', 'err'); return;
+    }
+    $('rgPass').value = ''; $('rgPass2').value = '';
+    if (res.data.session) { location.hash = returnTo; return; }
+    say('authMsg', 'Account created. Check your email and click the confirmation link, then sign in.', 'ok');
+  });
+  $('formForgot').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    const email = $('fpEmail').value.trim();
+    if (!/^\S+@\S+\.\S+$/.test(email)) { say('authMsg', 'Enter a valid email address.', 'err'); return; }
+    busy(e.target, true);
+    const res = await sb.auth.resetPasswordForEmail(email, { redirectTo: redirectUrl() });
+    busy(e.target, false);
+    if (res.error) { say('authMsg', friendly(res.error), 'err'); return; }
+    say('authMsg', 'If an account exists for that email, a reset link is on its way. Open it in this same browser.', 'ok');
+  });
+  $('formReset').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    const problem = passwordProblem($('rsPass').value, $('rsPass2').value);
+    if (problem) { say('authMsg', problem, 'err'); return; }
+    if (!user) { say('authMsg', 'Open the reset link from your email first, in this same browser.', 'err'); return; }
+    busy(e.target, true);
+    const res = await sb.auth.updateUser({ password: $('rsPass').value });
+    busy(e.target, false);
+    if (res.error) { say('authMsg', friendly(res.error), 'err'); return; }
+    $('rsPass').value = ''; $('rsPass2').value = '';
+    returnTo = '#/account';
+    location.hash = '#/account';
+    say('profMsg', 'Password updated.', 'ok');
+  });
+  $('signOutBtn').addEventListener('click', async function () {
+    if (sb) await sb.auth.signOut();
+    user = null; profile = null;
+    renderAcct();
+    location.hash = '#/';
+  });
+  $('formProfile').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    const username = $('username').value.trim().toLowerCase(), bio = $('bio').value.trim();
+    if (!/^[a-z0-9_]{3,20}$/.test(username)) { say('profMsg', 'Username must be 3–20 characters: letters, numbers or underscore.', 'err'); return; }
+    busy(e.target, true);
+    const res = await sb.from('profiles').upsert({ id: user.id, username: username, bio: bio });
+    busy(e.target, false);
+    if (res.error) { say('profMsg', res.error.code === '23505' ? 'That username is already taken.' : 'Could not save: ' + res.error.message, 'err'); return; }
+    profile = Object.assign({}, profile, { username: username, bio: bio });
+    renderAcct();
+    say('profMsg', 'Profile saved.', 'ok');
+  });
+  $('avatarFile').addEventListener('change', async function (e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (['image/png', 'image/jpeg', 'image/webp'].indexOf(file.type) < 0) { say('profMsg', 'Please choose a PNG, JPG or WebP image.', 'err'); return; }
+    if (file.size > 2 * 1024 * 1024) { say('profMsg', 'That image is over 2 MB. Choose a smaller one.', 'err'); return; }
+    const path = user.id + '/avatar';
+    const up = await sb.storage.from('avatars').upload(path, file, { upsert: true, contentType: file.type });
+    if (up.error) { say('profMsg', 'Upload failed: ' + up.error.message, 'err'); return; }
+    const url = sb.storage.from('avatars').getPublicUrl(path).data.publicUrl + '?v=' + Date.now();
+    const res = await sb.from('profiles').upsert({ id: user.id, avatar_url: url });
+    if (res.error) { say('profMsg', 'Could not save the picture: ' + res.error.message, 'err'); return; }
+    profile = Object.assign({}, profile, { avatar_url: url });
+    fillProfile();
+    say('profMsg', 'Profile picture updated.', 'ok');
+  });
+
+  // --- called by the page switcher ---
+  const TITLES = { signin: 'Sign in', register: 'Create account', forgot: 'Reset your password', reset: 'Choose a new password' };
+  function guard(view) {
+    if ((view === 'account' || view === 'dashboard') && ready && !user) {
+      pendingMsg = 'Sign in to continue.';
+      location.hash = '#/auth/signin';
+      return false;
+    }
+    return true;
+  }
+  function show(view, parts) {
+    if (view === 'auth') {
+      const sub = TITLES[parts[1]] ? parts[1] : 'signin';
+      document.querySelectorAll('form[data-form]').forEach(function (f) { f.hidden = f.dataset.form !== sub; });
+      $('authTitle').textContent = TITLES[sub];
+      say('authMsg', pendingMsg, 'err');
+      pendingMsg = '';
+      const banner = $('authBanner');
+      banner.hidden = false;
+      if (!sb) banner.textContent = 'Accounts are not connected yet, so nothing on this page works. Add your Supabase project URL and public key to FF_CONFIG at the top of script.js (see README.md).';
+      else if (location.protocol === 'file:') banner.textContent = 'You opened this as a local file. Sign-in may work, but email links (confirm, reset) need the published site or a local web server (see README.md).';
+      else banner.hidden = true;
+      document.querySelectorAll('form[data-form] button[type=submit]').forEach(function (b) { b.disabled = !sb; });
+      if (user && sub !== 'reset') location.hash = returnTo;
+    }
+    if (view === 'account') { say('profMsg', ''); if (user && !profile) loadProfile(); else fillProfile(); }
+  }
+  window.FFAuth = { guard: guard, show: show, remember: function (h) { returnTo = h; }, user: function () { return user; } };
+
+  renderAcct();
+  if (sb) {
+    sb.auth.getSession().then(function (res) {
+      user = res.data.session ? res.data.session.user : null;
+      ready = true;
+      renderAcct();
+      if (user) setTimeout(loadProfile, 0);
+      if (window.FFRoute) window.FFRoute();
+    });
+    sb.auth.onAuthStateChange(function (event, session) {
+      user = session ? session.user : null;
+      if (!user) profile = null;
+      renderAcct();
+      if (event === 'PASSWORD_RECOVERY') location.hash = '#/auth/reset';
+      if (user && !profile) setTimeout(loadProfile, 0);
+    });
+  }
+})();
+
 /* ---------- Part 4: page switching (#/library, #/calculator, #/shop) ---------- */
 if (typeof document !== 'undefined') (function () {
-  const VIEWS = ['home', 'library', 'calculator', 'shop'];
-  const TITLES = { home: 'FilamentFlow – 3D-printing platform', library: 'Model Library – FilamentFlow', calculator: 'Print Calculator – FilamentFlow', shop: 'Print Shop – FilamentFlow' };
+  const VIEWS = ['home', 'library', 'calculator', 'shop', 'auth', 'account', 'dashboard'];
+  const TITLES = { home: 'FilamentFlow – 3D-printing platform', library: 'Model Library – FilamentFlow', calculator: 'Print Calculator – FilamentFlow', shop: 'Print Shop – FilamentFlow', auth: 'Account – FilamentFlow', account: 'Your profile – FilamentFlow', dashboard: 'Creator dashboard – FilamentFlow' };
   function route() {
     const hash = location.hash;
     if (hash && hash.indexOf('#/') !== 0) return; // ignore other anchors such as the skip link
     const parts = hash.replace(/^#\/?/, '').split('/');
     const view = VIEWS.indexOf(parts[0]) >= 0 ? parts[0] : 'home';
+    if (window.FFAuth) {
+      if (view !== 'auth') window.FFAuth.remember(hash || '#/');
+      if (!window.FFAuth.guard(view)) return;
+    }
+    document.getElementById('acctMenu').open = false;
     VIEWS.forEach(function (n) { document.querySelector('[data-view="' + n + '"]').hidden = n !== view; });
     document.querySelectorAll('#nav a[data-link]').forEach(function (a) {
       if (a.dataset.link === view) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
     });
     if (view === 'library') window.FFLibrary.show(parts[1] || null);
+    if (window.FFAuth) window.FFAuth.show(view, parts);
     document.title = TITLES[view];
     window.scrollTo(0, 0);
   }
   window.addEventListener('hashchange', route);
+  window.FFRoute = route;
   route();
 })();

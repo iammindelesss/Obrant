@@ -17,6 +17,13 @@
       <a href="#/library" data-link="library">Model Library</a>
       <a href="#/calculator" data-link="calculator">Print Calculator</a>
       <a href="#/shop" data-link="shop">Print Shop <span class="badge">Soon</span></a>
+      <span class="acct" id="acct">
+        <span class="guest-only"><a class="btn" href="#/auth/signin">Sign in</a> <a class="btn primary" href="#/auth/register">Create account</a></span>
+        <details class="user-only menu" id="acctMenu">
+          <summary class="btn" id="acctName">Account</summary>
+          <div class="menu-list"><a href="#/account">Profile</a><a href="#/dashboard">Creator dashboard</a><button type="button" id="signOutBtn">Sign out</button></div>
+        </details>
+      </span>
     </nav>
   </div>
 </header>
@@ -28,6 +35,8 @@
     <div class="wrap">
       <h1>Find it. Print it. Price it.</h1>
       <p>FilamentFlow is a growing home for 3D printing: a model library, a print cost calculator, and a future shop for printed products. Pick where to start.</p>
+      <p class="hero-actions guest-only"><a class="btn primary" href="#/auth/register">Create account</a> <a class="btn" href="#/auth/signin">Sign in</a></p>
+      <p class="hero-actions user-only"><a class="btn primary" href="#/account">Your profile</a> <a class="btn" href="#/dashboard">Creator dashboard</a></p>
     </div>
   </section>
   <section class="wrap tiles" aria-label="Sections">
@@ -249,10 +258,70 @@
     </ul>
   </div>
   <p><a class="btn" href="#/calculator">Price a print in the calculator</a> <a class="btn" href="#/library">Browse models</a></p></div></div>
+
+<!-- ===== ACCOUNT: sign in / register / forgot / reset ===== -->
+<div data-view="auth" hidden><div class="wrap page narrow">
+  <h1 id="authTitle">Sign in</h1>
+  <p class="demo" id="authBanner" hidden></p>
+  <p class="msg" id="authMsg" role="status" aria-live="polite" hidden></p>
+  <form class="card auth-form" id="formSignin" data-form="signin" novalidate>
+    <div class="field"><label for="siEmail">Email</label><div class="control"><input id="siEmail" type="email" autocomplete="email" ></div></div>
+    <div class="field"><label for="siPass">Password</label><div class="control"><input id="siPass" type="password" autocomplete="current-password" ></div></div>
+    <button class="btn primary" type="submit">Sign in</button>
+    <p class="note"><a href="#/auth/forgot">Forgot your password?</a> · <a href="#/auth/register">Create an account</a></p>
+  </form>
+  <form class="card auth-form" id="formRegister" data-form="register" novalidate hidden>
+    <div class="field"><label for="rgEmail">Email</label><div class="control"><input id="rgEmail" type="email" autocomplete="email" ></div></div>
+    <div class="field"><label for="rgPass">Password (8+ characters, letters and numbers)</label><div class="control"><input id="rgPass" type="password" autocomplete="new-password" ></div></div>
+    <div class="field"><label for="rgPass2">Confirm password</label><div class="control"><input id="rgPass2" type="password" autocomplete="new-password" ></div></div>
+    <button class="btn primary" type="submit">Create account</button>
+    <p class="note">Already registered? <a href="#/auth/signin">Sign in</a></p>
+  </form>
+  <form class="card auth-form" id="formForgot" data-form="forgot" novalidate hidden>
+    <p class="note">Enter your email and we’ll send a reset link.</p>
+    <div class="field"><label for="fpEmail">Email</label><div class="control"><input id="fpEmail" type="email" autocomplete="email" ></div></div>
+    <button class="btn primary" type="submit">Send reset link</button>
+    <p class="note"><a href="#/auth/signin">Back to sign in</a></p>
+  </form>
+  <form class="card auth-form" id="formReset" data-form="reset" novalidate hidden>
+    <div class="field"><label for="rsPass">New password</label><div class="control"><input id="rsPass" type="password" autocomplete="new-password" ></div></div>
+    <div class="field"><label for="rsPass2">Confirm new password</label><div class="control"><input id="rsPass2" type="password" autocomplete="new-password" ></div></div>
+    <button class="btn primary" type="submit">Set new password</button>
+  </form>
+</div></div>
+
+<!-- ===== ACCOUNT: profile ===== -->
+<div data-view="account" hidden><div class="wrap page narrow">
+  <h1>Your profile</h1>
+  <p class="note" id="acctEmail"></p>
+  <p class="msg" id="profMsg" role="status" aria-live="polite" hidden></p>
+  <form class="card auth-form" id="formProfile" novalidate>
+    <div class="avatar-row">
+      <img id="avatarImg" class="avatar" alt="Your profile picture" hidden>
+      <span id="avatarPh" class="avatar ph" aria-hidden="true">?</span>
+      <div><label for="avatarFile">Profile picture</label><input id="avatarFile" type="file" accept="image/png,image/jpeg,image/webp"><p class="note">PNG, JPG or WebP, up to 2 MB.</p></div>
+    </div>
+    <div class="field"><label for="username">Username (3–20 letters, numbers or _)</label><div class="control"><input id="username" type="text" autocomplete="username" maxlength="20"></div></div>
+    <div class="field"><label for="bio">Short bio</label><div class="control"><textarea id="bio" maxlength="280"></textarea></div></div>
+    <button class="btn primary" type="submit">Save profile</button>
+  </form>
+</div></div>
+
+<!-- ===== ACCOUNT: creator dashboard ===== -->
+<div data-view="dashboard" hidden><div class="wrap page">
+  <h1>Creator dashboard</h1>
+  <p class="demo">Uploading is not built yet. These sections fill in once model listings come from your database.</p>
+  <div class="dash">
+    <div class="card"><h2>Your listings</h2><p class="empty">You haven’t published any models.</p><button class="btn primary" type="button" disabled>Upload a model (not built yet)</button></div>
+    <div class="card"><h2>Saved models</h2><p class="empty">Nothing saved yet.</p></div>
+  </div>
+</div></div>
 </main>
 
-<footer class="site-footer"><div class="wrap">FilamentFlow · Everything runs in your browser. No accounts or tracking yet. Estimates only, not financial advice.</div></footer>
+<footer class="site-footer"><div class="wrap">FilamentFlow · Calculations run in your browser. Accounts need a Supabase backend (not connected yet). Estimates only, not financial advice.</div></footer>
 
+<!-- Official Supabase client, pinned version. Needs an internet connection. -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script src="script.js"></script>
 </body>
 </html>

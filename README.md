@@ -30,7 +30,7 @@ Double-click `index.html`. It opens in your browser and needs no server or insta
 1. In the repository, open **Settings → Pages**.
 2. Under **Build and deployment**, set **Source** to **Deploy from a branch**.
 3. Choose branch **main** and folder **/ (root)**, then click **Save**.
-4. Wait a minute or two. The page shows your address: `https://iammindelesss.github.io/filamentflow/`.
+4. Wait a minute or two. The page shows your address: `https://YOUR-USERNAME.github.io/filamentflow/`.
 
 ## Update the site after changes
 
@@ -56,21 +56,35 @@ Markup and margin are different: a 100% markup gives a 50% margin.
 The calculation functions at the top of `script.js` do not touch the page, so you can reuse them for saved profiles, quotes or other features. Saved inputs use the `localStorage` key `filamentflow.v1`.
 
 
-## Connecting a backend (not done yet)
+## Accounts: what exists and what you must set up
 
-GitHub Pages only hosts static files. Accounts, the database and private file storage need a service such as **Supabase** (free tier available; check current limits). **Nothing in the site is connected to it yet**, so uploads, accounts, saved models and reporting do not work today.
+The sign-in, create-account, forgot/reset password, profile and account-menu screens are built, and `script.js` contains the code that talks to Supabase. **It has not been connected to a real Supabase project or tested against one**, so treat registration and sign-in as unverified until you finish the steps below and test them yourself.
 
-## Steps
-1. Create a project at supabase.com. Copy the **Project URL** and the **anon public key** into the `FF_CONFIG` block at the top of `script.js`. Never use or share the `service_role` key in this repo.
-2. In the Supabase **SQL editor**, run the schema below.
-3. In **Storage**, create a public bucket `previews` and a **private** bucket `model-files` (file limit about 50 MB). Serve private files only through short-lived signed URLs.
-4. In **Authentication**, enable email sign-up.
-5. Tell me when done and I will wire the frontend (sign in, upload form, real listings, reports).
+Security notes: passwords are handled only by Supabase (the site never sees or stores them). The key you paste into `script.js` is the public "anon/publishable" key, which is designed to be visible. **Never paste the `service_role` key anywhere in this project.** Real protection comes from the Row Level Security rules in step 3, not from hidden buttons.
 
-## Schema (starting point)
+### 1. Create the project
+1. Create a free project at supabase.com.
+2. In **Project Settings → API**, copy the **Project URL** and the **anon / publishable key**.
+3. Paste them into `FF_CONFIG` at the top of `script.js`.
+
+### 2. Authentication settings
+In **Authentication** in the Supabase dashboard (menu names change over time, so look for the matching setting):
+- Turn on the **Email** provider and **Confirm email**.
+- Set the minimum password length to 8.
+- Under **URL Configuration**, set **Site URL** to `https://iammindelesss.github.io/filamentflow/` and add that same address under **Redirect URLs**. Also add `http://localhost:8000/` if you want to test locally.
+- Supabase's built-in email sender is heavily rate-limited. For real use, add your own SMTP provider later.
+
+### 3. Database, security rules and storage
+Open the **SQL editor**, paste this, and run it:
+
 ```sql
 create table profiles (id uuid primary key references auth.users on delete cascade,
-  display_name text not null, bio text, avatar_url text, created_at timestamptz default now());
+  username text unique check (username ~ '^[a-z0-9_]{3,20}$'),
+  bio text check (char_length(bio) <= 280), avatar_url text, created_at timestamptz default now());
+create function handle_new_user() returns trigger language plpgsql security definer set search_path = public as $$
+begin insert into profiles (id) values (new.id); return new; end; $$;
+create trigger on_auth_user_created after insert on auth.users for each row execute function handle_new_user();
+
 create table models (id uuid primary key default gen_random_uuid(),
   owner_id uuid not null references profiles(id) on delete cascade,
   title text not null, description text, category text, tags text[] default '{}',
@@ -91,5 +105,24 @@ create policy "published models readable" on models for select using (status = '
 create policy "owner writes models" on models for all using (owner_id = auth.uid()) with check (owner_id = auth.uid());
 create policy "own saves" on saved_models for all using (user_id = auth.uid()) with check (user_id = auth.uid());
 create policy "signed-in users can report" on reports for insert with check (reporter_id = auth.uid());
+
+insert into storage.buckets (id, name, public) values ('avatars', 'avatars', true) on conflict do nothing;
+create policy "avatars public read" on storage.objects for select using (bucket_id = 'avatars');
+create policy "avatars own upload" on storage.objects for insert with check (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text);
+create policy "avatars own update" on storage.objects for update using (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text);
 ```
-Row-level security is what stops users editing each other's listings, so keep it on. Admin moderation and payments need extra work (payments must be verified on a server, never in the browser).
+Later, model files will go in a **private** bucket served through short-lived signed links. Payments and private downloads must be verified on a server, never in the browser.
+
+### 4. Test it yourself
+Serve the folder locally (`python3 -m http.server 8000` inside it, then open http://localhost:8000) or use the published site, then check:
+1. Create an account, confirm the email, and sign in.
+2. Refresh the page: you should stay signed in.
+3. Save a profile with a username, bio and picture.
+4. Sign out, then try "Forgot password" and finish the reset in the same browser.
+5. Try a wrong password and an email that already has an account, and check the messages.
+6. In the SQL editor or with a second account, confirm one user cannot change another user's profile.
+
+Password-reset and confirmation links only work from the published site or a local web server, not from a double-clicked file.
+
+### Not built yet
+Model uploads, real listings from the database, saving favourites, reporting, an admin role and the 3D viewer. The creator dashboard and the "save" button are placeholders until listings come from the database.
