@@ -1,3 +1,4 @@
+
 /* FilamentFlow v1
  * Part 1: pure calculation functions (no page access, easy to test and reuse).
  * Part 2: page wiring (only runs in a browser).
@@ -5,7 +6,7 @@
 
 // Backend settings (NOT used yet; see "Connecting a backend" in README.md).
 // The anon (public) key is designed to be visible in the browser. NEVER put a service_role key here.
-const FF_CONFIG = { SUPABASE_URL: 'https://supabase.com/dashboard/project/uiydxoajlzxmxuewkezi', SUPABASE_ANON_KEY: 'sb_publishable_lXWao4fcX4LZCtWfogwAwA_G_KQ-bJZ' };
+const FF_CONFIG = { SUPABASE_URL: 'https://uiydxoajlzxmxuewkezi.supabase.co', SUPABASE_ANON_KEY: 'sb_publishable_lXWao4fcX4LZCtWfogwAwA_G_K_Q-bJZ' };
 
 /* ---------- Part 1: calculations ---------- */
 
