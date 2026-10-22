@@ -3,13 +3,13 @@
 Orbrant is a 3D-printing platform made of plain HTML, CSS and JavaScript, hosted free on GitHub Pages, with accounts, the Model Library and file storage provided by Supabase.
 
 - **Orbrant Calculator**: filament, electricity and other costs, selling price, profit and margin.
-- **Orbrant Model Library**: browse, search, upload and download 3D models (STL, 3MF, OBJ, STEP).
+- **Orbrant Model Library**: browse, search, upload, report and download 3D models (STL, 3MF, OBJ, STEP).
 - **Orbrant Studio**: a separate desktop app. No release exists, so the site shows a Coming Soon page and no download.
 - **Settings** and **User Profile** (username, bio, picture).
 
 Premium listings can be created and shown with a price, but **payments are not set up**: nobody can buy, and premium files cannot be downloaded.
 
-## Files (4 on GitHub + 1 for Supabase)
+## Files (4 on GitHub + 2 for Supabase)
 
 | File | Purpose |
 | --- | --- |
@@ -18,6 +18,7 @@ Premium listings can be created and shown with a price, but **payments are not s
 | `script.js` | Calculator, library, uploads, accounts, page switching. Supabase settings are at the top. |
 | `README.md` | This guide |
 | `supabase-migration.sql` | Paste into the Supabase SQL editor. **Not uploaded to GitHub.** |
+| `moderation-function.ts` | Pasted into Supabase Edge Functions (see below). **Not uploaded to GitHub.** |
 
 All links and files use relative paths, so the site works under any repository name.
 
@@ -32,9 +33,26 @@ Your repository is currently named **Obrant** (no "r"), so the site is at `https
 3. **Check the key.** `script.js` already contains your project URL and publishable key. Never put a `sb_secret_` or `service_role` key in the site.
 4. **Upload the 4 files** to the repository (Add file → Upload files), replacing the old ones. Wait a couple of minutes and hard-refresh (Ctrl+Shift+R). The browser console (F12) should show `Orbrant build 5`.
 
-## Approving uploads
+## Reports and removal (no pre-approval)
 
-To stop people publishing their own uploads, every upload starts as **pending**, and the database refuses client requests that try to set a model to published. You approve models yourself: Supabase → **Table Editor → models**, change the row's `status` from `pending` to `published`. It appears in the library straight away, with no redeploy. (A review screen inside the site is not built yet.) Set `status` to `rejected` to refuse a model; the creator can delete it.
+Uploads go live in the library straight away. Safety works afterwards: any signed-in visitor can click **Report this model**. That sends you an email with a button. Clicking it opens a page on your site that shows the report; you type your password and click **Remove model permanently** (or **Keep model**). The model row and its files are then deleted.
+
+**Be aware:** with no review, anything uploaded is public immediately, including the file download. Reports are your only safety net, so check your email. You can always remove a model yourself in Supabase (Table Editor → models → delete the row, then delete its files in Storage).
+
+Sending email and checking the password must happen on a server, because those need secrets that can never be in a GitHub Pages site. The server part is one small Supabase **Edge Function**, `moderation-function.ts` (not uploaded to GitHub). Setup, once:
+
+1. **Run the migration again.** Re-run all of `supabase-migration.sql` in the SQL Editor. It is safe to repeat; it now allows published uploads and adds the `reports` table. (Models you uploaded earlier that are still `pending` can be made live with `update public.models set status = 'published' where status = 'pending';`.)
+2. **Get an email sender (free).** Sign up at resend.com using **the same email address that should receive reports**, then create an API key. Resend's free plan (3,000 emails a month, 100 a day) can only send to the address you signed up with, which is what we want. Check current limits on their site.
+3. **Deploy the function.** Supabase → **Edge Functions → Deploy a new function → Via Editor**. Name it exactly `moderation`, paste the whole of `moderation-function.ts`, and deploy. Then open the function's settings and **turn off "Verify JWT"**. (Visitors who are not signed in must be able to open your email link; the function checks the report token, your password and the user's sign-in itself.)
+4. **Add the secrets.** Edge Functions → **Secrets**, add these four:
+   - `RESEND_API_KEY`: the key from step 2.
+   - `ADMIN_REMOVE_PASSWORD`: a long password only you know. Never put it in any site file.
+   - `SITE_URL`: your live address with a trailing slash, e.g. `https://iammindelesss.github.io/Obrant/`
+   - `OWNER_EMAIL`: where reports go (you asked for `iammindeless@gmail.com`; check the spelling matches your Resend sign-up email).
+5. **Upload the 4 site files** to GitHub (build 6 in the console).
+6. **Test it**: with a second account, report a model. You should get an email (check spam). Open its link, try a wrong password (refused), then the right one (model removed, and gone from the library and Storage).
+
+How it is protected: the link holds a random 64-character token, and only a hash of it is stored. Removing needs the token **and** your password. After 8 wrong passwords a link locks (you can still remove the model in Supabase). Each person can report a model once and send at most 10 reports a day. If the email can't be sent (for example a wrong key), the report is still saved in the `reports` table, but its link cannot be recovered.
 
 ## How downloads and privacy work
 
@@ -48,17 +66,19 @@ To stop people publishing their own uploads, every upload starts as **pending**,
 1. Sign up, confirm the email, sign in, refresh (you stay signed in).
 2. User Profile: save a username and bio, refresh, and check they stay.
 3. Signed out, open `#/upload` (it asks you to sign in).
-4. Signed in, upload a small STL with an image. Check it appears in **Storage** (`model-files`, `model-previews`) and as a `pending` row in **Table Editor → models** with your user ID as `creator_id`.
-5. Approve it, then check it appears in the library, search and category filter find it, and the **Download** button gives back the same file.
+4. Signed in, upload a small STL with an image. Check it appears in **Storage** (`model-files`, `model-previews`) and as a `published` row in **Table Editor → models** with your user ID as `creator_id`.
+5. Check it appears in the library, search and category filter find it, and the **Download** button gives back the same file.
 6. Try a `.zip`, a file over 50 MB and a premium listing with no price; all should be refused.
-7. With a second account, check you cannot see or change the first account's pending listing.
-8. Make a premium listing, approve it, and check there is no working download.
+7. With a second account, check you cannot change or delete the first account's listing.
+8. Make a premium listing and check there is no working download.
+9. Report a model from a second account and follow the email link (see Reports and removal).
 
 ## Test report for this version
 
-- **Done by me, against a stand-in for Supabase (not the real service):** page switching and the guards, the account menu, library listing, search/filter/sort/load-more calls, detail page, free download request, premium shown without download, upload validation, upload success, upload failure cleanup and no double-submit, creator listings and delete, Settings, mobile layout and console errors.
-- **Not tested by me:** the real Supabase project (sign-in, profile saves, uploads, storage, downloads, the SQL and the security rules). I had no access, so none of that is verified until you run the checklist above. Real-service checks 1–8 are all untested.
-- **Not built:** a review screen for approving uploads, 3D preview, byte-level upload progress (the page shows stages), creator profile pages, payments, saved favourites, reporting, an Orbrant Studio download.
+- **Server function:** 24 logic checks run against a fake in-memory database (not real Supabase or Resend): sign-in required to report, one report per person per model, daily limit, token hashing, wrong token/password refused, 8-attempt lock, removal deletes the row and both files, dismiss keeps the model, HTML-escaped emails, the email link uses your `SITE_URL`.
+- **Done by me, against a stand-in for Supabase (not the real service):** report button and removal page, uploads going live, page switching and the guards, the account menu, library listing, search/filter/sort/load-more calls, detail page, free download request, premium shown without download, upload validation, upload success, upload failure cleanup and no double-submit, creator listings and delete, Settings, mobile layout and console errors.
+- **Not tested by me:** the real Supabase project (sign-in, profile saves, uploads, storage, downloads, the SQL and the security rules). I had no access, so none of that is verified until you run the checklist above. Real-service checks 1–9 are all untested, and the Edge Function, the Resend email and the reports table have never run for real.
+- **Not built:** 3D preview, byte-level upload progress (the page shows stages), creator profile pages, payments, saved favourites, reporting, an Orbrant Studio download.
 
 ## Run locally / update
 

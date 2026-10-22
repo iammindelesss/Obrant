@@ -212,3 +212,8 @@ body[data-auth="in"] .guest-only { display: none !important; }
 .st-published { background: #d9f0ec; color: var(--accent-dark); }
 .st-draft, .st-rejected { background: #fdecea; color: var(--danger); }
 input[type=file] { font: inherit; max-width: 100%; }
+
+.btn.danger { background: var(--danger); border-color: var(--danger); color: #fff; }
+.btn.danger:hover { background: #8f1d14; color: #fff; }
+#rmInfo dt { font-size: 0.8rem; color: var(--muted); margin-top: 10px; }
+#rmInfo dd { margin: 2px 0 0; }

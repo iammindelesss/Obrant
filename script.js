@@ -9,7 +9,7 @@ const FF_CONFIG = {
   SUPABASE_URL: 'https://uiydxoajlzxmxuewkezi.supabase.co',
   SUPABASE_ANON_KEY: 'sb_publishable_QEzWH4F1CVBnsFnFrUf0Mw_3Gnt5S9r'
 };
-const FF_BUILD = 'build 5';
+const FF_BUILD = 'build 6';
 
 /* ---------- Part 1: calculations ---------- */
 
@@ -358,6 +358,14 @@ if (typeof document !== 'undefined') (function () {
       const b = el('button', 'btn primary', 'Purchase (payments not set up)'); b.disabled = true; side.appendChild(b);
       side.appendChild(el('p', 'note-box', 'Premium purchases are not available yet. No payment can be made and this file cannot be downloaded.'));
     }
+    if (window.FFAuth && window.FFAuth.user()) {
+      const rb = el('button', 'btn', 'Report this model'); rb.type = 'button'; rb.style.marginTop = '12px';
+      const rf = reportForm(m); rf.hidden = true;
+      rb.addEventListener('click', function () { rf.hidden = !rf.hidden; });
+      side.appendChild(rb); side.appendChild(rf);
+    } else {
+      const rl = el('a', 'btn', 'Sign in to report this model'); rl.href = '#/auth/signin'; rl.style.marginTop = '12px'; side.appendChild(rl);
+    }
     const dlMsg = el('p', 'msg', ''); dlMsg.id = 'dlMsg'; dlMsg.hidden = true; side.appendChild(dlMsg);
     wrap.appendChild(side);
     v.appendChild(wrap);
@@ -422,14 +430,75 @@ if (typeof document !== 'undefined') (function () {
       }
       say('upMsg', 'Saving your listing… (final stage)');
       const ins = await c.from('models').insert({ id: id, creator_id: user.id, title: f.title, description: f.desc, category: f.cat, tags: f.tags,
-        file_path: filePath, file_name: f.file.name, file_type: f.ext, file_size: f.file.size, thumbnail_path: thumbPath, listing_type: type, price: f.price, status: 'pending' });
+        file_path: filePath, file_name: f.file.name, file_type: f.ext, file_size: f.file.size, thumbnail_path: thumbPath, listing_type: type, price: f.price, status: 'published' });
       if (ins.error) throw ins.error;
       $('formUpload').reset(); $('upPriceField').hidden = true;
-      say('upMsg', 'Upload complete. Your model is pending review and will appear in the library once approved. You can track it in your Creator dashboard.', 'ok');
+      say('upMsg', 'Upload complete. Your model is now live in the Model Library. You can manage it from your Creator dashboard.', 'ok');
     } catch (err) {
       for (let i = 0; i < uploaded.length; i++) { try { await c.storage.from(uploaded[i][0]).remove([uploaded[i][1]]); } catch (x) { /* best effort */ } }
       say('upMsg', 'Upload failed, and nothing was saved: ' + (err && err.message ? err.message : 'unknown error'), 'err');
     } finally { uploading = false; $('upBtn').disabled = false; }
+  }
+
+  // ----- reporting and removal (talks to the "moderation" Edge Function; see README.md) -----
+  async function callMod(body) {
+    const res = await sb().functions.invoke('moderation', { body: body });
+    if (!res.error) return res.data;
+    let msg = 'The request failed. Please try again.';
+    try {
+      const j = await res.error.context.json();
+      if (j && j.error) msg = j.error;
+      else if (j && /not found/i.test(j.message || '')) msg = 'The moderation service is not set up yet.';
+    } catch (x) { if (/send a request|fetch/i.test(res.error.message || '')) msg = 'Could not reach the moderation service. It may not be set up yet.'; }
+    throw new Error(msg);
+  }
+  function reportForm(m) {
+    const f = el('form', 'card auth-form'); f.noValidate = true; f.style.marginTop = '12px';
+    const l1 = el('label', '', 'Reason'); l1.setAttribute('for', 'rpReason');
+    const sel = el('select'); sel.id = 'rpReason';
+    [['infringing', 'Stolen or infringing someone else’s work'], ['inappropriate', 'Inappropriate or illegal'], ['malicious', 'Suspicious or harmful file'], ['other', 'Something else']].forEach(function (r) { const o = el('option', '', r[1]); o.value = r[0]; sel.appendChild(o); });
+    const c1 = el('div', 'control'); c1.appendChild(sel);
+    const l2 = el('label', '', 'Details (optional)'); l2.setAttribute('for', 'rpDetails');
+    const ta = el('textarea'); ta.id = 'rpDetails'; ta.maxLength = 500;
+    const c2 = el('div', 'control'); c2.appendChild(ta);
+    const go = el('button', 'btn primary', 'Send report'); go.type = 'submit';
+    const out = el('p', 'msg'); out.hidden = true;
+    [l1, c1, l2, c2, go, out].forEach(function (n) { f.appendChild(n); });
+    f.addEventListener('submit', async function (e) {
+      e.preventDefault(); go.disabled = true; out.hidden = true;
+      try { await callMod({ action: 'report', model_id: m.id, reason: sel.value, details: ta.value }); out.textContent = 'Thank you. Your report has been sent.'; out.className = 'msg ok'; ta.value = ''; }
+      catch (err) { out.textContent = err.message; out.className = 'msg err'; }
+      out.hidden = false; go.disabled = false;
+    });
+    return f;
+  }
+  let rmCtx = null;
+  async function showRemove(id, token) {
+    $('rmCard').hidden = true; $('rmPass').value = '';
+    if (!id || !token) { say('rmMsg', 'This link is incomplete.', 'err'); return; }
+    if (!sb()) { say('rmMsg', 'Supabase is not connected.', 'err'); return; }
+    say('rmMsg', 'Loading report…');
+    let info;
+    try { info = await callMod({ action: 'lookup', report_id: id, token: token }); } catch (e) { say('rmMsg', e.message, 'err'); return; }
+    const dl = $('rmInfo'); dl.innerHTML = '';
+    [['Model', info.model_title], ['Reason', info.reason], ['Details', info.details || 'None'], ['Report status', info.status + (info.model_exists ? '' : ' (model no longer exists)')]].forEach(function (r) { dl.appendChild(el('dt', '', r[0])); dl.appendChild(el('dd', '', r[1])); });
+    rmCtx = { id: id, token: token };
+    if (info.status !== 'open') { say('rmMsg', 'This report was already resolved (' + info.status + ').', 'ok'); return; }
+    say('rmMsg', '');
+    $('rmCard').hidden = false;
+  }
+  async function resolveReport(action) {
+    const pw = $('rmPass').value;
+    if (!rmCtx) return;
+    if (!pw) { say('rmMsg', 'Enter your password.', 'err'); return; }
+    if (action === 'remove' && !window.confirm('Permanently delete this model and its files?')) return;
+    $('rmRemove').disabled = true; $('rmDismiss').disabled = true;
+    try {
+      const r = await callMod({ action: action, report_id: rmCtx.id, token: rmCtx.token, password: pw });
+      say('rmMsg', action === 'remove' ? 'Model removed.' + (r.filesRemoved === false ? ' Some files could not be deleted; remove them in Supabase Storage.' : '') : 'Report dismissed. The model stays up.', 'ok');
+      $('rmCard').hidden = true; $('rmPass').value = '';
+    } catch (e) { say('rmMsg', e.message, 'err'); }
+    $('rmRemove').disabled = false; $('rmDismiss').disabled = false;
   }
 
   // ----- creator dashboard -----
@@ -486,7 +555,9 @@ if (typeof document !== 'undefined') (function () {
   $('retryBtn').addEventListener('click', function () { fetchPage(true); });
   $('upType').addEventListener('change', function (e) { $('upPriceField').hidden = e.target.value !== 'premium'; });
   $('formUpload').addEventListener('submit', onUpload);
-  window.FFLibrary = { show: show, loadMine: loadMine, limits: LIMITS };
+  $('rmRemove').addEventListener('click', function () { resolveReport('remove'); });
+  $('rmDismiss').addEventListener('click', function () { resolveReport('dismiss'); });
+  window.FFLibrary = { show: show, loadMine: loadMine, showRemove: showRemove, limits: LIMITS };
 })();
 
 /* ---------- Part 5: accounts (Supabase Auth) ----------
@@ -719,8 +790,8 @@ if (typeof document !== 'undefined') (function () {
 
 /* ---------- Part 4: page switching (#/library, #/calculator, #/shop) ---------- */
 if (typeof document !== 'undefined') (function () {
-  const VIEWS = ['home', 'library', 'calculator', 'studio', 'settings', 'auth', 'account', 'dashboard', 'upload'];
-  const TITLES = { home: 'Orbrant – 3D-printing platform', library: 'Orbrant Model Library', calculator: 'Orbrant Calculator', studio: 'Orbrant Studio', settings: 'Settings – Orbrant', auth: 'Account – Orbrant', account: 'User Profile – Orbrant', dashboard: 'Creator dashboard – Orbrant', upload: 'Upload a model – Orbrant' };
+  const VIEWS = ['home', 'library', 'calculator', 'studio', 'settings', 'auth', 'account', 'dashboard', 'upload', 'remove'];
+  const TITLES = { home: 'Orbrant – 3D-printing platform', library: 'Orbrant Model Library', calculator: 'Orbrant Calculator', studio: 'Orbrant Studio', settings: 'Settings – Orbrant', auth: 'Account – Orbrant', account: 'User Profile – Orbrant', dashboard: 'Creator dashboard – Orbrant', upload: 'Upload a model – Orbrant', remove: 'Review report – Orbrant' };
   function route() {
     const hash = location.hash;
     if (hash && hash.indexOf('#/') !== 0) return; // ignore other anchors such as the skip link
@@ -736,6 +807,7 @@ if (typeof document !== 'undefined') (function () {
       if (a.dataset.link === view) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
     });
     if (view === 'library') window.FFLibrary.show(parts);
+    if (view === 'remove') window.FFLibrary.showRemove(parts[1], parts[2]);
     if (view === 'dashboard' && window.FFAuth && window.FFAuth.user()) window.FFLibrary.loadMine();
     if (window.FFAuth) window.FFAuth.show(view, parts);
     document.title = TITLES[view];

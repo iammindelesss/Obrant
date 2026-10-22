@@ -8,7 +8,7 @@
 <meta property="og:title" content="Orbrant – 3D-printing platform">
 <meta property="og:description" content="Browse and share 3D-printable models and price your prints with the Orbrant Calculator.">
 <meta property="og:type" content="website">
-<link rel="stylesheet" href="style.css?v=5">
+<link rel="stylesheet" href="style.css?v=6">
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
@@ -48,7 +48,7 @@
     <a class="tile" href="#/library">
       <span class="status ok">Beta</span>
       <h2>Model Library</h2>
-      <p>Browse and download 3D models shared by creators. Sign in to upload your own. New uploads are reviewed before they appear.</p>
+      <p>Browse and download 3D models shared by creators. Sign in to upload your own. Anyone signed in can report a model.</p>
       <span class="go">Open library →</span>
     </a>
     <a class="tile" href="#/calculator">
@@ -282,7 +282,7 @@
 <!-- ===== UPLOAD ===== -->
 <div data-view="upload" hidden><div class="wrap page narrow">
   <h1>Upload a model</h1>
-  <p class="note">Accepted: STL, 3MF, OBJ, STEP (up to 50 MB). Preview image: PNG, JPG or WebP (up to 5 MB). New uploads are reviewed before they appear in the library.</p>
+  <p class="note">Accepted: STL, 3MF, OBJ, STEP (up to 50 MB). Preview image: PNG, JPG or WebP (up to 5 MB). Models go live straight away. Signed-in visitors can report a model, and reported models are reviewed and removed if they break the rules.</p>
   <p class="msg" id="upMsg" role="status" aria-live="polite" hidden></p>
   <form class="card auth-form" id="formUpload" novalidate>
     <div class="field"><label for="upTitle">Title</label><div class="control"><input id="upTitle" type="text" maxlength="100"></div></div>
@@ -295,6 +295,17 @@
     <div class="field" id="upPriceField" hidden><label for="upPrice">Price (NZD)</label><div class="control"><input id="upPrice" type="number" step="0.01" min="0.01" inputmode="decimal"></div></div>
     <button class="btn primary" id="upBtn" type="submit">Upload model</button>
   </form>
+</div></div>
+
+<!-- ===== REVIEW A REPORT (opened from the report email) ===== -->
+<div data-view="remove" hidden><div class="wrap page narrow">
+  <h1>Review report</h1>
+  <p class="msg" id="rmMsg" role="status" aria-live="polite" hidden></p>
+  <div class="card" id="rmCard" hidden>
+    <dl id="rmInfo"></dl>
+    <div class="field"><label for="rmPass">Password</label><div class="control"><input id="rmPass" type="password" autocomplete="current-password"></div></div>
+    <p><button class="btn danger" id="rmRemove" type="button">Remove model permanently</button> <button class="btn" id="rmDismiss" type="button">Keep model (dismiss report)</button></p>
+  </div>
 </div></div>
 
 <!-- ===== ACCOUNT: sign in / register / forgot / reset ===== -->
@@ -366,6 +377,6 @@
 
 <!-- Official Supabase client, pinned version (2.76.0). Needs an internet connection. -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.76.0/dist/umd/supabase.js"></script>
-<script src="script.js?v=5"></script>
+<script src="script.js?v=6"></script>
 </body>
 </html>
