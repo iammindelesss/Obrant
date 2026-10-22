@@ -3,25 +3,30 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>FilamentFlow – 3D-printing platform</title>
-<meta name="description" content="FilamentFlow: browse 3D-printable models, price your prints, and (soon) discover printed products.">
-<link rel="stylesheet" href="style.css?v=3">
+<title>Orbrant – 3D-printing platform</title>
+<meta name="description" content="Orbrant: a 3D-printing platform with a model library, a print cost calculator and, soon, a desktop app.">
+<meta property="og:title" content="Orbrant – 3D-printing platform">
+<meta property="og:description" content="Browse and share 3D-printable models and price your prints with the Orbrant Calculator.">
+<meta property="og:type" content="website">
+<link rel="stylesheet" href="style.css?v=5">
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
 <header class="site-header">
   <div class="wrap bar">
-    <a class="brand" href="#/">FilamentFlow</a>
+    <a class="brand" href="#/">Orbrant</a>
     <button class="menu-btn" id="menuBtn" type="button" aria-expanded="false" aria-controls="nav">Menu</button>
     <nav id="nav" class="nav" aria-label="Main">
+      <a href="#/" data-link="home">Home</a>
+      <a href="#/calculator" data-link="calculator">Calculator</a>
       <a href="#/library" data-link="library">Model Library</a>
-      <a href="#/calculator" data-link="calculator">Print Calculator</a>
-      <a href="#/shop" data-link="shop">Print Shop <span class="badge">Soon</span></a>
+      <a href="#/studio" data-link="studio">Orbrant Studio</a>
+      <a href="#/settings" data-link="settings">Settings</a>
       <span class="acct" id="acct">
         <span class="guest-only"><a class="btn" href="#/auth/signin">Sign in</a> <a class="btn primary" href="#/auth/register">Create account</a></span>
         <details class="user-only menu" id="acctMenu">
           <summary class="btn" id="acctName">Account</summary>
-          <div class="menu-list"><a href="#/account">Profile</a><a href="#/dashboard">Creator dashboard</a><button type="button" id="signOutBtn">Sign out</button></div>
+          <div class="menu-list"><a href="#/account">User Profile</a><a href="#/dashboard">Creator dashboard</a><button type="button" id="signOutBtn">Sign out</button></div>
         </details>
       </span>
     </nav>
@@ -34,61 +39,66 @@
   <section class="hero">
     <div class="wrap">
       <h1>Find it. Print it. Price it.</h1>
-      <p>FilamentFlow is a growing home for 3D printing: a model library, a print cost calculator, and a future shop for printed products. Pick where to start.</p>
+      <p>Orbrant is a home for 3D printing: a model library to browse and share, a calculator to price your prints, and a desktop app, Orbrant Studio, in development. Pick where to start.</p>
       <p class="hero-actions guest-only"><a class="btn primary" href="#/auth/register">Create account</a> <a class="btn" href="#/auth/signin">Sign in</a></p>
-      <p class="hero-actions user-only"><a class="btn primary" href="#/account">Your profile</a> <a class="btn" href="#/dashboard">Creator dashboard</a></p>
+      <p class="hero-actions user-only"><a class="btn primary" href="#/account">User Profile</a> <a class="btn" href="#/dashboard">Creator dashboard</a></p>
     </div>
   </section>
   <section class="wrap tiles" aria-label="Sections">
     <a class="tile" href="#/library">
-      <span class="status">Demo listings</span>
+      <span class="status ok">Beta</span>
       <h2>Model Library</h2>
-      <p>Browse, search and filter 3D-printable models. Uploads and accounts need a backend that isn’t connected yet, so today’s listings are samples.</p>
+      <p>Browse and download 3D models shared by creators. Sign in to upload your own. New uploads are reviewed before they appear.</p>
       <span class="go">Open library →</span>
     </a>
     <a class="tile" href="#/calculator">
       <span class="status ok">Working</span>
-      <h2>Print Calculator</h2>
+      <h2>Calculator</h2>
       <p>Work out filament, electricity and other costs, then set a selling price and see your real profit margin.</p>
       <span class="go">Open calculator →</span>
     </a>
-    <a class="tile" href="#/shop">
+    <a class="tile" href="#/studio">
       <span class="status">Coming soon</span>
-      <h2>Print Shop</h2>
-      <p>A planned place to discover physical products made by 3D-printing creators. Nothing can be ordered yet.</p>
-      <span class="go">See the plan →</span>
+      <h2>Orbrant Studio</h2>
+      <p>A separate desktop application. No release exists yet, so there is nothing to download.</p>
+      <span class="go">Learn more →</span>
     </a>
   </section>
 </div>
 
 <!-- ===== MODEL LIBRARY ===== -->
-<div data-view="library" hidden><div class="wrap page"><h1>Model Library</h1>
-  <p class="demo">Demo data: these are sample listings with no real files. Uploads, accounts and premium purchases are not connected yet (see README.md).</p>
+<div data-view="library" hidden><div class="wrap page">
+  <div class="page-head">
+    <div><h1>Orbrant Model Library</h1><p class="lead">Browse and download 3D models shared by creators.</p></div>
+    <a class="btn primary" href="#/upload">Upload a model</a>
+  </div>
   <div id="listView">
     <div class="toolbar">
       <label class="sr" for="q">Search models</label>
-      <input id="q" type="search" placeholder="Search name, description or tag">
+      <input id="q" type="search" placeholder="Search title, description or tag">
       <label class="sr" for="cat">Category</label>
       <select id="cat"><option value="all">All categories</option></select>
       <label class="sr" for="sort">Sort by</label>
       <select id="sort">
-        <option value="newest">Newest</option>
-        <option value="free">Free first</option>
-        <option value="premium">Premium first</option>
-        <option disabled>Most popular (needs live data)</option>
+        <option value="newest">Newest</option><option value="oldest">Oldest</option><option value="title">Title A–Z</option>
+        <option value="free">Free first</option><option value="premium">Premium first</option>
       </select>
     </div>
     <p class="count" id="count" aria-live="polite"></p>
+    <p class="msg err" id="libError" hidden></p>
+    <p><button class="btn" id="retryBtn" type="button" hidden>Try again</button></p>
     <div class="model-grid" id="grid"></div>
-    <p class="empty" id="empty" hidden>No models match your search. Try a different word or category.</p>
+    <p class="empty" id="empty" hidden></p>
+    <p class="center"><button class="btn" id="moreBtn" type="button" hidden>Load more</button></p>
   </div>
-  <article id="detailView" hidden></article></div></div>
+  <article id="detailView" hidden></article>
+</div></div>
 
 <!-- ===== PRINT CALCULATOR ===== -->
 <div data-view="calculator" hidden>
   <section class="wrap intro">
-    <h1>Know what each print really costs.</h1>
-    <p>Work out material, power and extra costs for a 3D print, then set a selling price and see your real profit margin. Everything is calculated in your browser.</p>
+    <h1>Orbrant Calculator</h1>
+    <p>Know what each print really costs. Work out material, power and extra costs for a 3D print, then set a selling price and see your real profit margin. Everything is calculated in your browser.</p>
   </section>
 
   <section id="calculator" class="wrap layout" aria-label="Cost calculator">
@@ -241,23 +251,51 @@
 
   <section id="privacy" class="wrap info">
     <h2>Privacy</h2>
-    <p>No account, no server, no tracking. Calculations run in your browser. Your inputs are saved in this browser’s local storage so they are there next time; “Reset to defaults” clears them.</p>
+    <p>Calculator figures are worked out in your browser and saved only in this browser’s local storage; “Reset to defaults” clears them. The Model Library and accounts use Supabase, which stores account details and models you upload.</p>
   </section>
 </div>
 
-<!-- ===== PRINT SHOP ===== -->
-<div data-view="shop" hidden><div class="wrap page"><p class="status">Coming soon</p>
-  <h1>Print Shop</h1>
-  <p class="lead">The plan is a marketplace where people can order physical 3D-printed products from creators. <strong>None of this exists yet</strong>: there is no checkout, no ordering and no shipping.</p>
-  <div class="card">
-    <h2>Planned, not built</h2>
-    <ul class="plain">
-      <li>Product listings with variations such as colour and material</li>
-      <li>Orders and creator fulfilment, with order status tracking</li>
-      <li>Shipping estimates from the nearest suitable print location, once real locations and shipping data exist</li>
-    </ul>
-  </div>
-  <p><a class="btn" href="#/calculator">Price a print in the calculator</a> <a class="btn" href="#/library">Browse models</a></p></div></div>
+<!-- ===== ORBRANT STUDIO ===== -->
+<div data-view="studio" hidden><div class="wrap page">
+  <span class="status">Coming soon</span>
+  <h1>Orbrant Studio</h1>
+  <p class="lead">Orbrant Studio is a separate desktop application, distinct from this website. There is no release yet, so there is nothing to download.</p>
+  <p><button class="btn primary" type="button" disabled>Download (not available yet)</button></p>
+  <p class="note">A download link will appear here once a real, verified release exists.</p>
+</div></div>
+
+<!-- ===== SETTINGS ===== -->
+<div data-view="settings" hidden><div class="wrap page narrow">
+  <h1>Settings</h1>
+  <div class="card"><h2>Calculator</h2>
+    <p class="note">Your calculator inputs are saved in this browser only.</p>
+    <button class="btn" id="clearCalc" type="button">Clear saved calculator data</button>
+    <p class="note" id="setMsg" role="status"></p></div>
+  <div class="card user-only"><h2>Account</h2>
+    <p class="note" id="setEmail"></p>
+    <a class="btn" href="#/account">Edit User Profile</a> <button class="btn" id="setSignOut" type="button">Sign out</button></div>
+  <div class="card guest-only"><h2>Account</h2>
+    <p class="note">You are not signed in.</p>
+    <a class="btn primary" href="#/auth/signin">Sign In</a> <a class="btn" href="#/auth/register">Sign Up</a></div>
+</div></div>
+
+<!-- ===== UPLOAD ===== -->
+<div data-view="upload" hidden><div class="wrap page narrow">
+  <h1>Upload a model</h1>
+  <p class="note">Accepted: STL, 3MF, OBJ, STEP (up to 50 MB). Preview image: PNG, JPG or WebP (up to 5 MB). New uploads are reviewed before they appear in the library.</p>
+  <p class="msg" id="upMsg" role="status" aria-live="polite" hidden></p>
+  <form class="card auth-form" id="formUpload" novalidate>
+    <div class="field"><label for="upTitle">Title</label><div class="control"><input id="upTitle" type="text" maxlength="100"></div></div>
+    <div class="field"><label for="upDesc">Description</label><div class="control"><textarea id="upDesc" maxlength="2000"></textarea></div></div>
+    <div class="field"><label for="upCat">Category</label><div class="control"><select id="upCat"></select></div></div>
+    <div class="field"><label for="upTags">Tags (comma separated, up to 8)</label><div class="control"><input id="upTags" type="text" placeholder="organiser, desk, clip"></div></div>
+    <div class="field"><label for="upFile">Model file</label><input id="upFile" type="file" accept=".stl,.3mf,.obj,.step,.stp"></div>
+    <div class="field"><label for="upThumb">Preview image (optional)</label><input id="upThumb" type="file" accept="image/png,image/jpeg,image/webp"></div>
+    <div class="field"><label for="upType">Listing type</label><div class="control"><select id="upType"><option value="free">Free</option><option value="premium">Premium (purchases not available yet)</option></select></div></div>
+    <div class="field" id="upPriceField" hidden><label for="upPrice">Price (NZD)</label><div class="control"><input id="upPrice" type="number" step="0.01" min="0.01" inputmode="decimal"></div></div>
+    <button class="btn primary" id="upBtn" type="submit">Upload model</button>
+  </form>
+</div></div>
 
 <!-- ===== ACCOUNT: sign in / register / forgot / reset ===== -->
 <div data-view="auth" hidden><div class="wrap page narrow">
@@ -277,6 +315,12 @@
     <button class="btn primary" type="submit">Create account</button>
     <p class="note">Already registered? <a href="#/auth/signin">Sign in</a></p>
   </form>
+  <section class="card auth-form" id="regDone" data-form="checkemail" hidden>
+    <p><strong>Please check your inbox to confirm your email.</strong></p>
+    <p>We sent a confirmation link to <strong id="doneEmail"></strong>. Click it, then sign in. If you can’t see it, check your spam folder.</p>
+    <button class="btn" type="button" id="resendBtn">Resend email</button>
+    <p class="note"><a href="#/auth/signin">Back to sign in</a></p>
+  </section>
   <form class="card auth-form" id="formForgot" data-form="forgot" novalidate hidden>
     <p class="note">Enter your email and we’ll send a reset link.</p>
     <div class="field"><label for="fpEmail">Email</label><div class="control"><input id="fpEmail" type="email" autocomplete="email" ></div></div>
@@ -310,18 +354,18 @@
 <!-- ===== ACCOUNT: creator dashboard ===== -->
 <div data-view="dashboard" hidden><div class="wrap page">
   <h1>Creator dashboard</h1>
-  <p class="demo">Uploading is not built yet. These sections fill in once model listings come from your database.</p>
+  
   <div class="dash">
-    <div class="card"><h2>Your listings</h2><p class="empty">You haven’t published any models.</p><button class="btn primary" type="button" disabled>Upload a model (not built yet)</button></div>
+    <div class="card"><h2>Your listings</h2><p class="msg" id="dashMsg" role="status" hidden></p><div id="myListings"></div><p><a class="btn primary" href="#/upload">Upload a model</a></p></div>
     <div class="card"><h2>Saved models</h2><p class="empty">Nothing saved yet.</p></div>
   </div>
 </div></div>
 </main>
 
-<footer class="site-footer"><div class="wrap">FilamentFlow · Calculations run in your browser. Accounts need a Supabase backend (not connected yet). Estimates only, not financial advice.</div></footer>
+<footer class="site-footer"><div class="wrap">Orbrant · Calculations run in your browser. Accounts are provided by Supabase. Estimates only, not financial advice.</div></footer>
 
 <!-- Official Supabase client, pinned version (2.76.0). Needs an internet connection. -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.76.0/dist/umd/supabase.js"></script>
-<script src="script.js?v=3"></script>
+<script src="script.js?v=5"></script>
 </body>
 </html>

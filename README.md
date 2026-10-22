@@ -1,136 +1,69 @@
-# FilamentFlow
+# Orbrant
 
-A 3D-printing platform in four files: a home page, a **Print Calculator** (works fully), a **Model Library** (demo listings only) and a **Print Shop** coming-soon page. It runs entirely in your browser: no backend, no account, no data uploaded.
+Orbrant is a 3D-printing platform made of plain HTML, CSS and JavaScript, hosted free on GitHub Pages, with accounts, the Model Library and file storage provided by Supabase.
 
-**Not built yet:** saved profiles, multiple materials or printers, job history, downloadable quotes and CAD-file analysis. A CAD model's volume cannot give accurate filament use or print time (that depends on slicer settings), so version 1 uses figures from your slicer.
+- **Orbrant Calculator**: filament, electricity and other costs, selling price, profit and margin.
+- **Orbrant Model Library**: browse, search, upload and download 3D models (STL, 3MF, OBJ, STEP).
+- **Orbrant Studio**: a separate desktop app. No release exists, so the site shows a Coming Soon page and no download.
+- **Settings** and **User Profile** (username, bio, picture).
 
-## Files
+Premium listings can be created and shown with a price, but **payments are not set up**: nobody can buy, and premium files cannot be downloaded.
+
+## Files (4 on GitHub + 1 for Supabase)
 
 | File | Purpose |
 | --- | --- |
-| `index.html` | All pages: Home, Model Library, Print Calculator, Print Shop |
-| `style.css` | All styling |
-| `script.js` | Calculator, library and page switching |
+| `index.html` | All pages (Home, Calculator, Model Library, Orbrant Studio, Settings, account pages, Upload) |
+| `style.css` | Styling |
+| `script.js` | Calculator, library, uploads, accounts, page switching. Supabase settings are at the top. |
 | `README.md` | This guide |
+| `supabase-migration.sql` | Paste into the Supabase SQL editor. **Not uploaded to GitHub.** |
 
-## Run locally
+All links and files use relative paths, so the site works under any repository name.
 
-Double-click `index.html`. It opens in your browser and needs no server or install.
+## Repository name
 
-## Upload to GitHub
+Your repository is currently named **Obrant** (no "r"), so the site is at `https://iammindelesss.github.io/Obrant/`. The brand is **Orbrant**. If you want the repository to match, rename it: GitHub repo → **Settings → General → Repository name** → `orbrant` → Rename. The site then moves to `https://iammindelesss.github.io/orbrant/`, and the old address stops working. Whichever name you end up with, do step 2 below with that exact address.
 
-1. Create a free account at github.com and sign in.
-2. Click **New repository**. Name it (for example `filamentflow`), keep it **Public**, and click **Create repository**.
-3. On the empty repository page, click **uploading an existing file**.
-4. Drag in the 4 files (the files themselves, not a folder).
-5. Click **Commit changes**.
+## Setup (do in this order)
 
-## Enable GitHub Pages
+1. **Run the migration.** Supabase dashboard → **SQL Editor → New query**, paste all of `supabase-migration.sql`, click **Run**. It creates or repairs the `profiles` table (fixing "Could not find the table 'public.profiles'" and the missing `bio` column), the `models` table, the storage buckets and all security rules, and refreshes the API schema cache. It keeps existing data and is safe to run again. If it stops with a message about a different `models` table, nothing was changed; ask for help.
+2. **Fix the sign-in redirect addresses.** Supabase → **Authentication → URL Configuration**: set **Site URL** to your live address (for example `https://iammindelesss.github.io/Obrant/`) and add the same address under **Redirect URLs**. Email confirmation and password-reset links use this.
+3. **Check the key.** `script.js` already contains your project URL and publishable key. Never put a `sb_secret_` or `service_role` key in the site.
+4. **Upload the 4 files** to the repository (Add file → Upload files), replacing the old ones. Wait a couple of minutes and hard-refresh (Ctrl+Shift+R). The browser console (F12) should show `Orbrant build 5`.
 
-1. In the repository, open **Settings → Pages**.
-2. Under **Build and deployment**, set **Source** to **Deploy from a branch**.
-3. Choose branch **main** and folder **/ (root)**, then click **Save**.
-4. Wait a minute or two. The site is at `https://iammindelesss.github.io/filamentflow/`.
+## Approving uploads
 
-## Update the site after changes
+To stop people publishing their own uploads, every upload starts as **pending**, and the database refuses client requests that try to set a model to published. You approve models yourself: Supabase → **Table Editor → models**, change the row's `status` from `pending` to `published`. It appears in the library straight away, with no redeploy. (A review screen inside the site is not built yet.) Set `status` to `rejected` to refuse a model; the creator can delete it.
 
-1. Edit the files on your computer and check them locally.
-2. In the repository, click **Add file → Upload files**, drag in the changed files (same names replace the old ones), and click **Commit changes**.
-3. Wait a minute or two, then hard-refresh the site (Ctrl+Shift+R, or Cmd+Shift+R on Mac).
+## How downloads and privacy work
 
-## Formulas
+- Model files live in a **private** bucket. Visitors can download a file only when a **published, free** listing points at it; the site asks Supabase for a link that expires after 60 seconds.
+- Premium files cannot be read by anyone but their owner. Real premium sales need a payment provider and a server-side check (for example a Supabase Edge Function), which are not built.
+- Preview images and profile pictures are public. Profiles contain only username, bio and picture, never email addresses.
+- Creators can change or delete only their own rows and files. The database and storage rules enforce this, not the buttons.
 
-- Cost per gram = spool price ÷ spool weight
-- Filament cost = cost per gram × grams used
-- Waste allowance = filament cost × allowance %
-- Electricity = (watts ÷ 1000) × hours × price per kWh
-- Total cost = filament + waste + electricity + maintenance + packaging + other
-- Selling price = total cost × (1 + markup ÷ 100)
-- Gross profit = selling price − total cost
-- Margin = gross profit ÷ selling price × 100
+## Test checklist (do these on the live site)
 
-Markup and margin are different: a 100% markup gives a 50% margin.
+1. Sign up, confirm the email, sign in, refresh (you stay signed in).
+2. User Profile: save a username and bio, refresh, and check they stay.
+3. Signed out, open `#/upload` (it asks you to sign in).
+4. Signed in, upload a small STL with an image. Check it appears in **Storage** (`model-files`, `model-previews`) and as a `pending` row in **Table Editor → models** with your user ID as `creator_id`.
+5. Approve it, then check it appears in the library, search and category filter find it, and the **Download** button gives back the same file.
+6. Try a `.zip`, a file over 50 MB and a premium listing with no price; all should be refused.
+7. With a second account, check you cannot see or change the first account's pending listing.
+8. Make a premium listing, approve it, and check there is no working download.
 
-## Extending the code
+## Test report for this version
 
-The calculation functions at the top of `script.js` do not touch the page, so you can reuse them for saved profiles, quotes or other features. Saved inputs use the `localStorage` key `filamentflow.v1`.
+- **Done by me, against a stand-in for Supabase (not the real service):** page switching and the guards, the account menu, library listing, search/filter/sort/load-more calls, detail page, free download request, premium shown without download, upload validation, upload success, upload failure cleanup and no double-submit, creator listings and delete, Settings, mobile layout and console errors.
+- **Not tested by me:** the real Supabase project (sign-in, profile saves, uploads, storage, downloads, the SQL and the security rules). I had no access, so none of that is verified until you run the checklist above. Real-service checks 1–8 are all untested.
+- **Not built:** a review screen for approving uploads, 3D preview, byte-level upload progress (the page shows stages), creator profile pages, payments, saved favourites, reporting, an Orbrant Studio download.
 
+## Run locally / update
 
-## Accounts: what exists and what you must set up
+Serve the folder (`python3 -m http.server 8000`, then open http://localhost:8000) and add that address to Supabase Redirect URLs if you want email links to work locally. To update the live site, upload changed files to GitHub and hard-refresh.
 
-The sign-in, create-account, forgot/reset password, profile and account-menu screens are built, and `script.js` contains the code that talks to Supabase. **It has not been connected to a real Supabase project or tested against one**, so treat registration and sign-in as unverified until you finish the steps below and test them yourself.
+## Calculator formulas
 
-Security notes: passwords are handled only by Supabase (the site never sees or stores them). The key you paste into `script.js` is the public "publishable" key, which is designed to be visible. **Never paste the `service_role` key anywhere in this project.** Real protection comes from the Row Level Security rules in step 3, not from hidden buttons.
-
-### 1. Create the project
-1. Create a free project at supabase.com.
-2. In **Project Settings → API**, copy the **Project URL** and the **Publishable key** (`sb_publishable_...`).
-3. Paste them into `FF_CONFIG` at the top of `script.js`.
-
-### 2. Authentication settings
-In **Authentication** in the Supabase dashboard (menu names change over time, so look for the matching setting):
-- Turn on the **Email** provider and **Confirm email**.
-- Set the minimum password length to 8.
-- Under **URL Configuration**, set **Site URL** to `https://iammindelesss.github.io/filamentflow/` and add that same address under **Redirect URLs**. Also add `http://localhost:8000/` if you want to test locally.
-- Supabase's built-in email sender is heavily rate-limited. For real use, add your own SMTP provider later.
-
-### 3. Database, security rules and storage
-Open the **SQL editor**, paste this, and run it:
-
-```sql
-create table profiles (id uuid primary key references auth.users on delete cascade,
-  username text unique check (username ~ '^[a-z0-9_]{3,20}$'),
-  bio text check (char_length(bio) <= 280), avatar_url text, created_at timestamptz default now());
-create function handle_new_user() returns trigger language plpgsql security definer set search_path = public as $$
-begin insert into profiles (id) values (new.id); return new; end; $$;
-create trigger on_auth_user_created after insert on auth.users for each row execute function handle_new_user();
-
-create table models (id uuid primary key default gen_random_uuid(),
-  owner_id uuid not null references profiles(id) on delete cascade,
-  title text not null, description text, category text, tags text[] default '{}',
-  formats text[] default '{}', print_tips text, license text,
-  is_premium boolean default false, price_cents int, file_path text, preview_paths text[] default '{}',
-  status text default 'published', created_at timestamptz default now());
-create table saved_models (user_id uuid references profiles(id) on delete cascade,
-  model_id uuid references models(id) on delete cascade, primary key (user_id, model_id));
-create table reports (id uuid primary key default gen_random_uuid(),
-  model_id uuid references models(id) on delete cascade, reporter_id uuid references profiles(id),
-  reason text not null, created_at timestamptz default now(), resolved boolean default false);
-
-alter table profiles enable row level security;  alter table models enable row level security;
-alter table saved_models enable row level security;  alter table reports enable row level security;
-create policy "profiles readable" on profiles for select using (true);
-create policy "own profile" on profiles for all using (auth.uid() = id) with check (auth.uid() = id);
-create policy "published models readable" on models for select using (status = 'published' or owner_id = auth.uid());
-create policy "owner writes models" on models for all using (owner_id = auth.uid()) with check (owner_id = auth.uid());
-create policy "own saves" on saved_models for all using (user_id = auth.uid()) with check (user_id = auth.uid());
-create policy "signed-in users can report" on reports for insert with check (reporter_id = auth.uid());
-
-insert into storage.buckets (id, name, public) values ('avatars', 'avatars', true) on conflict do nothing;
-create policy "avatars public read" on storage.objects for select using (bucket_id = 'avatars');
-create policy "avatars own upload" on storage.objects for insert with check (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text);
-create policy "avatars own update" on storage.objects for update using (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text);
-```
-Later, model files will go in a **private** bucket served through short-lived signed links. Payments and private downloads must be verified on a server, never in the browser.
-
-### 4. Test it yourself
-Serve the folder locally (`python3 -m http.server 8000` inside it, then open http://localhost:8000) or use the published site, then check:
-1. Create an account, confirm the email, and sign in.
-2. Refresh the page: you should stay signed in.
-3. Save a profile with a username, bio and picture.
-4. Sign out, then try "Forgot password" and finish the reset in the same browser.
-5. Try a wrong password and an email that already has an account, and check the messages.
-6. In the SQL editor or with a second account, confirm one user cannot change another user's profile.
-
-Password-reset and confirmation links only work from the published site or a local web server, not from a double-clicked file.
-
-### Troubleshooting: "Invalid API key"
-1. **Test the key without the website.** Paste this into your browser address bar:
-   `https://uiydxoajlzxmxuewkezi.supabase.co/auth/v1/settings?apikey=sb_publishable_QEzWH4F1CVBnsFnFrUf0Mw_3Gnt5S9r`
-   If you see a block of settings text, the key is valid. If you see `Invalid API key`, the key (or project) is wrong: copy the Publishable key again from **Project Settings → API Keys** for this exact project.
-2. **Check you are running the new files.** Open the site, press F12, open the **Console** tab and hard-refresh (Ctrl+Shift+R). You should see a line starting `FilamentFlow build 3` and `key check: HTTP 200`. If you don't see "build 3", GitHub is still serving old files: re-upload all four and wait a couple of minutes.
-3. Keys must be pasted with no spaces or line breaks, and never use the `sb_secret_` key in the website.
-4. If you rotated or deleted keys in Supabase, copy the current Publishable key again.
-
-### Not built yet
-Model uploads, real listings from the database, saving favourites, reporting, an admin role and the 3D viewer. The creator dashboard and the "save" button are placeholders until listings come from the database.
+Cost per gram = spool price ÷ weight; filament = cost per gram × grams; waste = filament × allowance %; electricity = (W ÷ 1000) × hours × price per kWh; total = filament + waste + electricity + maintenance + packaging + other; selling price = total × (1 + markup ÷ 100); profit = price − total; margin = profit ÷ price × 100. A 100% markup is a 50% margin.

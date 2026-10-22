@@ -1,4 +1,4 @@
-/* FilamentFlow v1
+/* Orbrant v1
  * Part 1: pure calculation functions (no page access, easy to test and reuse).
  * Part 2: page wiring (only runs in a browser).
  */
@@ -9,7 +9,7 @@ const FF_CONFIG = {
   SUPABASE_URL: 'https://uiydxoajlzxmxuewkezi.supabase.co',
   SUPABASE_ANON_KEY: 'sb_publishable_QEzWH4F1CVBnsFnFrUf0Mw_3Gnt5S9r'
 };
-const FF_BUILD = 'build 3';
+const FF_BUILD = 'build 5';
 
 /* ---------- Part 1: calculations ---------- */
 
@@ -88,7 +88,8 @@ if (typeof module !== 'undefined') {
 
 if (typeof document !== 'undefined') {
   (function () {
-    const STORAGE_KEY = 'filamentflow.v1';
+    const STORAGE_KEY = 'orbrant.v1';
+    const OLD_STORAGE_KEY = 'filamentflow.v1'; // from before the Orbrant rebrand; migrated once
     const NUMBER_IDS = Object.keys(RULES);
     const $ = function (id) { return document.getElementById(id); };
     let currency = DEFAULTS.currency;
@@ -193,7 +194,13 @@ if (typeof document !== 'undefined') {
     }
     function load() {
       try {
-        const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+        let raw = localStorage.getItem(STORAGE_KEY);
+        if (raw === null && localStorage.getItem(OLD_STORAGE_KEY) !== null) {
+          raw = localStorage.getItem(OLD_STORAGE_KEY);
+          localStorage.setItem(STORAGE_KEY, raw);
+          localStorage.removeItem(OLD_STORAGE_KEY);
+        }
+        const saved = JSON.parse(raw);
         if (saved && typeof saved === 'object') return Object.assign({}, DEFAULTS, saved);
       } catch (e) { /* fall back to defaults */ }
       return Object.assign({}, DEFAULTS);
@@ -204,6 +211,8 @@ if (typeof document !== 'undefined') {
       update();
       $('saveNote').textContent = 'Reset to defaults and cleared saved inputs.';
     }
+
+    window.FFCalcReset = reset; // used by the Settings page
 
     // Start-up
     fillForm(load());
@@ -230,129 +239,254 @@ if (typeof document !== 'undefined') {
   })();
 }
 
-/* ---------- Part 3: Model Library (demo) ---------- */
+/* ---------- Part 3: Model Library (live data from Supabase) ---------- */
 if (typeof document !== 'undefined') (function () {
-/* Model Library (demo). MODELS is sample data; later this list comes from the backend (see README.md).
- * To show a real free download, put the file in a models/ folder and set file: 'models/name.stl'. */
-const MODELS = [
-  { id: 'cable-clip', title: 'Desk cable clip', creator: 'Sample Creator', category: 'Home & Desk', tags: ['organiser', 'clip', 'cable'], premium: false, added: '2026-09-28', formats: ['STL', '3MF'], license: 'CC BY 4.0', file: null,
-    desc: 'A small clip that holds charging cables to the edge of a desk.', tips: '0.2 mm layers, 3 walls, 15% infill, no supports.' },
-  { id: 'phone-stand', title: 'Folding phone stand', creator: 'Sample Creator', category: 'Home & Desk', tags: ['phone', 'stand'], premium: false, added: '2026-09-12', formats: ['STL'], license: 'CC BY-NC 4.0', file: null,
-    desc: 'A two-part phone stand that folds flat for travel.', tips: '0.2 mm layers, 4 walls, 20% infill. Print flat.' },
-  { id: 'gear-set', title: 'Modular gear set', creator: 'Demo Workshop', category: 'Mechanical', tags: ['gears', 'mechanical', 'education'], premium: true, added: '2026-10-05', formats: ['STL', '3MF', 'OBJ'], license: 'Commercial licence (demo)', file: null,
-    desc: 'Interlocking gears of several sizes for teaching and prototypes.', tips: '0.15 mm layers, 5 walls, 40% infill, PETG recommended.' },
-  { id: 'plant-pot', title: 'Geometric plant pot', creator: 'Demo Workshop', category: 'Decor', tags: ['planter', 'vase', 'decor'], premium: false, added: '2026-08-30', formats: ['STL', 'OBJ'], license: 'CC BY 4.0', file: null,
-    desc: 'A faceted pot with a drainage tray.', tips: '0.2 mm layers, vase mode for the pot, 3 walls for the tray.' },
-  { id: 'dice-tower', title: 'Tabletop dice tower', creator: 'Sample Creator', category: 'Games', tags: ['tabletop', 'dice', 'game'], premium: true, added: '2026-10-14', formats: ['3MF'], license: 'Personal use (demo)', file: null,
-    desc: 'A folding dice tower with an internal baffle ramp.', tips: '0.2 mm layers, 3 walls, 10% infill, supports under the top bridge.' },
-  { id: 'hex-organiser', title: 'Hex drawer organiser', creator: 'Demo Workshop', category: 'Home & Desk', tags: ['organiser', 'hex', 'storage'], premium: false, added: '2026-07-19', formats: ['STL', '3MF'], license: 'CC0', file: null,
-    desc: 'Tessellating hex bins that fill a drawer with no wasted space.', tips: '0.2 mm layers, 2 walls, 10% infill.' }
-];
+  // Limits are shown to users and enforced again by the database/Storage rules (see supabase-migration.sql).
+  const LIMITS = { modelBytes: 50 * 1024 * 1024, imageBytes: 5 * 1024 * 1024, maxTags: 8, pageSize: 12 };
+  const MODEL_EXT = ['stl', '3mf', 'obj', 'step', 'stp'];
+  const IMAGE_EXT = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' };
+  const CATEGORIES = ['Home & Desk', 'Mechanical', 'Decor', 'Games', 'Tools', 'Toys', 'Other'];
+  const COLS = 'id,creator_id,title,description,category,tags,file_name,file_type,file_size,thumbnail_path,listing_type,price,status,created_at,profiles(username)';
+  const $ = (id) => document.getElementById(id);
+  const sb = () => (window.FFAuth ? window.FFAuth.client() : null);
+  const state = { q: '', cat: 'all', sort: 'newest', creator: null, page: 0, total: 0, loading: false, items: [] };
+  let uploading = false, timer = null;
 
-const $ = (id) => document.getElementById(id);
-const state = { q: '', cat: 'all', sort: 'newest' };
-
-function el(tag, cls, text) {
-  const e = document.createElement(tag);
-  if (cls) e.className = cls;
-  if (text !== undefined) e.textContent = text;
-  return e;
-}
-function matches(m) {
-  const hay = [m.title, m.desc, m.tags.join(' ')].join(' ').toLowerCase();
-  const q = state.q.trim().toLowerCase();
-  return (state.cat === 'all' || m.category === state.cat) && (!q || hay.includes(q));
-}
-function sorted(list) {
-  const s = list.slice();
-  if (state.sort === 'newest') s.sort((a, b) => b.added.localeCompare(a.added));
-  if (state.sort === 'free') s.sort((a, b) => Number(a.premium) - Number(b.premium));
-  if (state.sort === 'premium') s.sort((a, b) => Number(b.premium) - Number(a.premium));
-  return s;
-}
-const priceLabel = (m) => (m.premium ? 'Premium (demo)' : 'Free');
-
-function renderList() {
-  const list = sorted(MODELS.filter(matches));
-  const grid = $('grid');
-  grid.innerHTML = '';
-  list.forEach((m) => {
-    const a = el('a', 'model-card');
-    a.href = '#/library/' + m.id;
-    a.appendChild(el('div', 'thumb', 'No preview image'));
-    const body = el('div', 'body');
-    body.appendChild(el('h3', '', m.title));
-    body.appendChild(el('p', 'meta', m.creator + ' · ' + priceLabel(m)));
-    const tags = el('div', 'tags');
-    m.tags.forEach((t) => tags.appendChild(el('span', 'tag', t)));
-    body.appendChild(tags);
-    a.appendChild(body);
-    grid.appendChild(a);
-  });
-  $('count').textContent = list.length + (list.length === 1 ? ' model' : ' models');
-  $('empty').hidden = list.length > 0;
-}
-
-function renderDetail(m) {
-  const v = $('detailView');
-  v.innerHTML = '';
-  const back = el('a', 'back', '← All models');
-  back.href = '#/library';
-  v.appendChild(back);
-  v.appendChild(el('h2', '', m.title));
-  const wrap = el('div', 'detail');
-  wrap.appendChild(el('div', 'thumb', 'No preview image (demo listing)'));
-  const dl = el('dl');
-  [['Creator', m.creator], ['Price', priceLabel(m)], ['Category', m.category], ['File formats', m.formats.join(', ')],
-   ['Licence', m.license], ['Printing recommendations', m.tips], ['Description', m.desc]].forEach((row) => {
-    dl.appendChild(el('dt', '', row[0]));
-    dl.appendChild(el('dd', '', row[1]));
-  });
-  const side = el('div');
-  side.appendChild(dl);
-  if (!m.premium && m.file) {
-    const dlink = el('a', 'btn primary', 'Download');
-    dlink.href = m.file;
-    dlink.setAttribute('download', '');
-    side.appendChild(dlink);
-  } else {
-    const b = el('button', 'btn primary', m.premium ? 'Purchase unavailable' : 'No file in this demo');
-    b.disabled = true;
-    side.appendChild(b);
-    side.appendChild(el('p', 'note-box', m.premium
-      ? 'Demo listing. Checkout and secure file delivery are not built yet, so nothing can be bought.'
-      : 'Demo listing with no real file attached.'));
+  function el(tag, cls, text) {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined) e.textContent = text;
+    return e;
   }
-  if (window.FFAuth && window.FFAuth.user()) {
-    const sv = el('button', 'btn', 'Save (works once listings come from the database)');
-    sv.disabled = true; sv.style.marginTop = '12px'; side.appendChild(sv);
-  } else {
-    const sl = el('a', 'btn', 'Sign in to save models');
-    sl.href = '#/auth/signin'; sl.style.marginTop = '12px'; side.appendChild(sl);
+  const money = (n) => 'NZ$' + Number(n).toFixed(2);
+  const sizeLabel = (b) => (b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB');
+  const creatorName = (m) => (m.profiles && m.profiles.username ? '@' + m.profiles.username : 'Unnamed creator');
+  const priceLabel = (m) => (m.listing_type === 'premium' ? 'Premium · ' + money(m.price) : 'Free');
+  function say(id, text, kind) { const m = $(id); m.textContent = text || ''; m.hidden = !text; m.className = 'msg ' + (kind || ''); }
+  function thumbUrl(path) { const c = sb(); return c && path ? c.storage.from('model-previews').getPublicUrl(path).data.publicUrl : null; }
+  function thumbBox(path, alt) {
+    const box = el('div', 'thumb');
+    const url = thumbUrl(path);
+    if (!url) { box.textContent = 'No preview image'; return box; }
+    const img = el('img'); img.src = url; img.alt = alt; img.loading = 'lazy';
+    img.addEventListener('error', function () { box.textContent = 'Preview unavailable'; });
+    box.appendChild(img);
+    return box;
   }
-  const rep = el('button', 'btn', 'Report this model (needs backend)');
-  rep.disabled = true;
-  rep.style.marginTop = '12px';
-  side.appendChild(rep);
-  wrap.appendChild(side);
-  v.appendChild(wrap);
-}
 
-function show(id) {
-  const m = MODELS.find((x) => x.id === id);
-  $('listView').hidden = Boolean(m);
-  $('detailView').hidden = !m;
-  if (m) renderDetail(m);
-}
+  // ----- browsing -----
+  async function fetchPage(reset) {
+    const c = sb();
+    if (!c) { say('libError', 'The library needs the Supabase connection, which is not available. See the notice on the Sign in page.', 'err'); $('retryBtn').hidden = true; return; }
+    if (state.loading) return;
+    state.loading = true;
+    if (reset) { state.page = 0; state.items = []; }
+    $('count').textContent = 'Loading models…';
+    say('libError', '');
+    $('retryBtn').hidden = true;
+    let q = c.from('models').select(COLS, { count: 'exact' }).eq('status', 'published');
+    if (state.cat !== 'all') q = q.eq('category', state.cat);
+    if (state.creator) q = q.eq('creator_id', state.creator);
+    const term = state.q.replace(/[%,()*{}"\\]/g, ' ').trim();
+    if (term) q = q.or('title.ilike.%' + term + '%,description.ilike.%' + term + '%,tags.cs.{' + term.toLowerCase().replace(/\s+/g, '-') + '}');
+    if (state.sort === 'oldest') q = q.order('created_at', { ascending: true });
+    else if (state.sort === 'title') q = q.order('title', { ascending: true });
+    else if (state.sort === 'free') q = q.order('listing_type', { ascending: true }).order('created_at', { ascending: false });
+    else if (state.sort === 'premium') q = q.order('listing_type', { ascending: false }).order('created_at', { ascending: false });
+    else q = q.order('created_at', { ascending: false });
+    const from = state.page * LIMITS.pageSize;
+    const res = await q.range(from, from + LIMITS.pageSize - 1);
+    state.loading = false;
+    if (res.error) { say('libError', 'Could not load models: ' + res.error.message, 'err'); $('retryBtn').hidden = false; $('count').textContent = ''; return; }
+    state.items = state.items.concat(res.data || []);
+    state.total = res.count || 0;
+    state.page++;
+    renderList();
+  }
+  function renderList() {
+    const grid = $('grid');
+    grid.innerHTML = '';
+    state.items.forEach(function (m) {
+      const a = el('a', 'model-card');
+      a.href = '#/library/' + m.id;
+      a.appendChild(thumbBox(m.thumbnail_path, m.title));
+      const body = el('div', 'body');
+      body.appendChild(el('h3', '', m.title));
+      body.appendChild(el('p', 'meta', creatorName(m) + ' · ' + priceLabel(m)));
+      if (m.description) body.appendChild(el('p', 'meta clamp', m.description));
+      const tags = el('div', 'tags');
+      tags.appendChild(el('span', 'tag', m.category));
+      (m.tags || []).slice(0, 3).forEach(function (t) { tags.appendChild(el('span', 'tag', t)); });
+      body.appendChild(tags);
+      a.appendChild(body);
+      grid.appendChild(a);
+    });
+    $('count').textContent = state.total + (state.total === 1 ? ' model' : ' models') + (state.creator ? ' by this creator' : '');
+    const filtered = state.q.trim() || state.cat !== 'all' || state.creator;
+    $('empty').hidden = state.items.length > 0;
+    $('empty').textContent = filtered ? 'No models match your search. Try a different word or category.' : 'No models have been published yet. Be the first: upload one.';
+    $('moreBtn').hidden = state.items.length >= state.total;
+  }
 
-Array.from(new Set(MODELS.map((m) => m.category))).sort().forEach((c) => {
-  const o = el('option', '', c); o.value = c; $('cat').appendChild(o);
-});
-$('q').addEventListener('input', (e) => { state.q = e.target.value; renderList(); });
-$('cat').addEventListener('change', (e) => { state.cat = e.target.value; renderList(); });
-$('sort').addEventListener('change', (e) => { state.sort = e.target.value; renderList(); });
-renderList();
-window.FFLibrary = { show: show };
+  // ----- detail and download -----
+  async function loadDetail(id) {
+    const v = $('detailView');
+    v.innerHTML = '';
+    v.appendChild(el('p', 'note', 'Loading…'));
+    const c = sb();
+    if (!c) { v.innerHTML = ''; v.appendChild(el('p', 'msg err', 'The library is not connected to Supabase.')); return; }
+    const res = await c.from('models').select(COLS + ',file_path').eq('id', id).maybeSingle();
+    v.innerHTML = '';
+    const back = el('a', 'back', '← All models'); back.href = '#/library'; v.appendChild(back);
+    if (res.error || !res.data) { v.appendChild(el('p', 'empty', res.error ? 'Could not load this model: ' + res.error.message : 'This model was not found, or is not published.')); return; }
+    const m = res.data;
+    v.appendChild(el('h2', '', m.title));
+    const wrap = el('div', 'detail');
+    wrap.appendChild(thumbBox(m.thumbnail_path, m.title));
+    const side = el('div'), dl = el('dl');
+    const by = el('a', '', creatorName(m)); by.href = '#/library/by/' + m.creator_id;
+    const rows = [['Creator', by], ['Price', priceLabel(m)], ['Category', m.category], ['File', m.file_type.toUpperCase() + ' · ' + sizeLabel(m.file_size)],
+      ['Tags', (m.tags || []).join(', ') || 'None'], ['Description', m.description || 'No description.']];
+    rows.forEach(function (r) { dl.appendChild(el('dt', '', r[0])); const dd = el('dd'); if (typeof r[1] === 'string') dd.textContent = r[1]; else dd.appendChild(r[1]); dl.appendChild(dd); });
+    side.appendChild(dl);
+    if (m.status !== 'published') side.appendChild(el('p', 'note-box', 'Only you can see this listing. Status: ' + m.status + '.'));
+    if (m.listing_type === 'free' && m.status === 'published') {
+      const b = el('button', 'btn primary', 'Download'); b.type = 'button';
+      b.addEventListener('click', function () { download(m, b); });
+      side.appendChild(b);
+    } else if (m.listing_type === 'premium') {
+      const b = el('button', 'btn primary', 'Purchase (payments not set up)'); b.disabled = true; side.appendChild(b);
+      side.appendChild(el('p', 'note-box', 'Premium purchases are not available yet. No payment can be made and this file cannot be downloaded.'));
+    }
+    const dlMsg = el('p', 'msg', ''); dlMsg.id = 'dlMsg'; dlMsg.hidden = true; side.appendChild(dlMsg);
+    wrap.appendChild(side);
+    v.appendChild(wrap);
+  }
+  async function download(m, btn) {
+    btn.disabled = true;
+    say('dlMsg', 'Preparing your download…');
+    const res = await sb().storage.from('model-files').createSignedUrl(m.file_path, 60, { download: m.file_name });
+    btn.disabled = false;
+    if (res.error || !res.data) { say('dlMsg', 'This file is not available for download right now. ' + (res.error ? res.error.message : ''), 'err'); return; }
+    const a = document.createElement('a');
+    a.href = res.data.signedUrl; a.download = m.file_name;
+    document.body.appendChild(a); a.click(); a.remove();
+    say('dlMsg', 'Download started.', 'ok');
+  }
+
+  // ----- upload -----
+  function uuid() {
+    if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (ch) { const r = Math.random() * 16 | 0; return (ch === 'x' ? r : (r & 3 | 8)).toString(16); });
+  }
+  function checkUpload(f) {
+    if (f.title.length < 3 || f.title.length > 100) return 'Title must be 3–100 characters.';
+    if (f.desc.length > 2000) return 'Description must be 2000 characters or fewer.';
+    if (!f.cat) return 'Choose a category.';
+    if (f.tags.length > LIMITS.maxTags) return 'Use at most ' + LIMITS.maxTags + ' tags.';
+    if (f.tags.some(function (t) { return !/^[a-z0-9-]{1,30}$/.test(t); })) return 'Tags can only use letters, numbers and hyphens (30 characters max each).';
+    if (!f.file) return 'Choose a model file.';
+    if (MODEL_EXT.indexOf(f.ext) < 0) return 'Model files must be STL, 3MF, OBJ or STEP.';
+    if (f.file.size <= 0) return 'The model file is empty.';
+    if (f.file.size > LIMITS.modelBytes) return 'The model file is over ' + sizeLabel(LIMITS.modelBytes) + '.';
+    if (f.img && !IMAGE_EXT[f.img.type]) return 'The preview image must be PNG, JPG or WebP.';
+    if (f.img && f.img.size > LIMITS.imageBytes) return 'The preview image is over ' + sizeLabel(LIMITS.imageBytes) + '.';
+    if (f.type === 'premium' && !(f.price > 0 && f.price <= 10000)) return 'Enter a price between 0.01 and 10000.';
+    return '';
+  }
+  async function onUpload(e) {
+    e.preventDefault();
+    if (uploading) return;
+    const c = sb(), user = window.FFAuth && window.FFAuth.user();
+    if (!c || !user) { say('upMsg', 'Please sign in to upload models.', 'err'); return; }
+    const file = $('upFile').files[0], img = $('upThumb').files[0], type = $('upType').value;
+    const f = { title: $('upTitle').value.trim(), desc: $('upDesc').value.trim(), cat: $('upCat').value, type: type,
+      tags: Array.from(new Set($('upTags').value.split(',').map(function (t) { return t.trim().toLowerCase().replace(/\s+/g, '-'); }).filter(Boolean))),
+      file: file, img: img, ext: file ? file.name.split('.').pop().toLowerCase() : '', price: type === 'premium' ? Math.round(Number($('upPrice').value) * 100) / 100 : null };
+    const problem = checkUpload(f);
+    if (problem) { say('upMsg', problem, 'err'); return; }
+    uploading = true; $('upBtn').disabled = true; say('upMsg', '');
+    const id = uuid(), base = user.id + '/' + id + '/', uploaded = [];
+    const filePath = base + f.file.name.replace(/[^A-Za-z0-9._-]+/g, '_').slice(-100);
+    const thumbPath = img ? base + 'thumbnail.' + IMAGE_EXT[img.type] : null;
+    try {
+      say('upMsg', 'Uploading model file… (stage 1 of ' + (img ? 3 : 2) + ')');
+      let r = await c.storage.from('model-files').upload(filePath, f.file, { contentType: 'application/octet-stream', upsert: false });
+      if (r.error) throw r.error;
+      uploaded.push(['model-files', filePath]);
+      if (img) {
+        say('upMsg', 'Uploading preview image… (stage 2 of 3)');
+        r = await c.storage.from('model-previews').upload(thumbPath, img, { contentType: img.type, upsert: false });
+        if (r.error) throw r.error;
+        uploaded.push(['model-previews', thumbPath]);
+      }
+      say('upMsg', 'Saving your listing… (final stage)');
+      const ins = await c.from('models').insert({ id: id, creator_id: user.id, title: f.title, description: f.desc, category: f.cat, tags: f.tags,
+        file_path: filePath, file_name: f.file.name, file_type: f.ext, file_size: f.file.size, thumbnail_path: thumbPath, listing_type: type, price: f.price, status: 'pending' });
+      if (ins.error) throw ins.error;
+      $('formUpload').reset(); $('upPriceField').hidden = true;
+      say('upMsg', 'Upload complete. Your model is pending review and will appear in the library once approved. You can track it in your Creator dashboard.', 'ok');
+    } catch (err) {
+      for (let i = 0; i < uploaded.length; i++) { try { await c.storage.from(uploaded[i][0]).remove([uploaded[i][1]]); } catch (x) { /* best effort */ } }
+      say('upMsg', 'Upload failed, and nothing was saved: ' + (err && err.message ? err.message : 'unknown error'), 'err');
+    } finally { uploading = false; $('upBtn').disabled = false; }
+  }
+
+  // ----- creator dashboard -----
+  async function loadMine() {
+    const c = sb(), user = window.FFAuth && window.FFAuth.user(), host = $('myListings');
+    if (!c || !user) return;
+    host.textContent = 'Loading your listings…';
+    const res = await c.from('models').select('id,title,status,listing_type,price,created_at').eq('creator_id', user.id).order('created_at', { ascending: false });
+    host.innerHTML = '';
+    if (res.error) { host.appendChild(el('p', 'msg err', 'Could not load your listings: ' + res.error.message)); return; }
+    if (!res.data.length) { host.appendChild(el('p', 'empty', 'You haven’t uploaded any models yet.')); return; }
+    res.data.forEach(function (m) {
+      const row = el('div', 'listing-row');
+      const a = el('a', '', m.title); a.href = '#/library/' + m.id;
+      row.appendChild(a);
+      row.appendChild(el('span', 'tag st-' + m.status, m.status));
+      const del = el('button', 'btn', 'Delete'); del.type = 'button';
+      del.addEventListener('click', function () { deleteMine(m.id, del); });
+      row.appendChild(del);
+      host.appendChild(row);
+    });
+  }
+  async function deleteMine(id, btn) {
+    if (!window.confirm('Delete this listing and its files? This cannot be undone.')) return;
+    const c = sb();
+    btn.disabled = true;
+    const sel = await c.from('models').select('file_path,thumbnail_path').eq('id', id).single();
+    const del = await c.from('models').delete().eq('id', id);
+    if (del.error) { say('dashMsg', 'Could not delete: ' + del.error.message, 'err'); btn.disabled = false; return; }
+    if (sel.data) {
+      const rm1 = await c.storage.from('model-files').remove([sel.data.file_path]);
+      const rm2 = sel.data.thumbnail_path ? await c.storage.from('model-previews').remove([sel.data.thumbnail_path]) : { error: null };
+      if (rm1.error || rm2.error) say('dashMsg', 'Listing deleted, but some files could not be removed.', 'err'); else say('dashMsg', 'Listing deleted.', 'ok');
+    }
+    loadMine();
+  }
+
+  function show(parts) {
+    const second = parts[1] || null;
+    if (second && second !== 'by') { $('listView').hidden = true; $('detailView').hidden = false; loadDetail(second); return; }
+    $('listView').hidden = false; $('detailView').hidden = true;
+    state.creator = second === 'by' ? (parts[2] || null) : null;
+    fetchPage(true);
+  }
+
+  // ----- setup -----
+  CATEGORIES.forEach(function (c) {
+    [$('cat'), $('upCat')].forEach(function (sel, i) { const o = el('option', '', c); o.value = c; sel.appendChild(o); });
+  });
+  $('q').addEventListener('input', function (e) { state.q = e.target.value; clearTimeout(timer); timer = setTimeout(function () { fetchPage(true); }, 300); });
+  $('cat').addEventListener('change', function (e) { state.cat = e.target.value; fetchPage(true); });
+  $('sort').addEventListener('change', function (e) { state.sort = e.target.value; fetchPage(true); });
+  $('moreBtn').addEventListener('click', function () { fetchPage(false); });
+  $('retryBtn').addEventListener('click', function () { fetchPage(true); });
+  $('upType').addEventListener('change', function (e) { $('upPriceField').hidden = e.target.value !== 'premium'; });
+  $('formUpload').addEventListener('submit', onUpload);
+  window.FFLibrary = { show: show, loadMine: loadMine, limits: LIMITS };
 })();
 
 /* ---------- Part 5: accounts (Supabase Auth) ----------
@@ -369,14 +503,14 @@ if (typeof document !== 'undefined') (function () {
     ? window.supabase.createClient(url, key, { auth: { flowType: 'pkce', persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } })
     : null;
   let keyNote = secretKey ? 'This is a SECRET key. Never use it in a website. Use the Publishable key instead, and rotate the secret key in Supabase now.' : '';
-  console.info('FilamentFlow ' + FF_BUILD + ' | Supabase URL: ' + url + ' | key starts: ' + key.slice(0, 16) + '… (' + key.length + ' chars) | library loaded: ' + Boolean(window.supabase));
+  console.info('Orbrant ' + FF_BUILD + ' | Supabase URL: ' + url + ' | key starts: ' + key.slice(0, 16) + '… (' + key.length + ' chars) | library loaded: ' + Boolean(window.supabase));
   // Independent check that does not use the Supabase library: asks Supabase's auth server for its settings using only this key.
   if (sb) fetch(url + '/auth/v1/settings', { headers: { apikey: key } }).then(function (r) {
-    console.info('FilamentFlow key check: HTTP ' + r.status);
+    console.info('Orbrant key check: HTTP ' + r.status);
     if (r.status === 401 || r.status === 403) keyNote = 'Supabase rejected the public key in script.js (HTTP ' + r.status + '). Copy the Publishable key again from Project Settings → API Keys for project uiydxoajlzxmxuewkezi, with no spaces, and re-upload script.js.';
     updateBanner();
-  }).catch(function () { console.info('FilamentFlow key check: could not reach Supabase'); });
-  let user = null, profile = null, ready = !sb, returnTo = '#/', pendingMsg = '';
+  }).catch(function () { console.info('Orbrant key check: could not reach Supabase'); });
+  let user = null, profile = null, ready = !sb, returnTo = '#/', pendingMsg = '', pendingEmail = '';
   const redirectUrl = () => location.origin + location.pathname;
 
   function say(id, text, kind) {
@@ -408,6 +542,7 @@ if (typeof document !== 'undefined') (function () {
     if (!user) return;
     $('acctName').textContent = (profile && profile.username) || (user.email || 'Account').split('@')[0];
     $('acctEmail').textContent = 'Signed in as ' + user.email;
+    $('setEmail').textContent = 'Signed in as ' + user.email;
   }
   function fillProfile() {
     $('username').value = (profile && profile.username) || '';
@@ -455,7 +590,18 @@ if (typeof document !== 'undefined') (function () {
     }
     $('rgPass').value = ''; $('rgPass2').value = '';
     if (res.data.session) { location.hash = returnTo; return; }
-    say('authMsg', 'Account created. Check your email and click the confirmation link, then sign in.', 'ok');
+    pendingEmail = email;
+    say('authMsg', '');
+    location.hash = '#/auth/checkemail';
+  });
+  $('resendBtn').addEventListener('click', async function () {
+    if (!sb || !pendingEmail) return;
+    const btn = $('resendBtn');
+    btn.disabled = true;
+    const res = await sb.auth.resend({ type: 'signup', email: pendingEmail, options: { emailRedirectTo: redirectUrl() } });
+    btn.disabled = false;
+    if (res.error) { say('authMsg', friendly(res.error), 'err'); return; }
+    say('authMsg', 'Another confirmation email is on its way.', 'ok');
   });
   $('formForgot').addEventListener('submit', async function (e) {
     e.preventDefault();
@@ -516,7 +662,7 @@ if (typeof document !== 'undefined') (function () {
   });
 
   // --- called by the page switcher ---
-  const TITLES = { signin: 'Sign in', register: 'Create account', forgot: 'Reset your password', reset: 'Choose a new password' };
+  const TITLES = { checkemail: 'Check your inbox', signin: 'Sign in', register: 'Create account', forgot: 'Reset your password', reset: 'Choose a new password' };
   function updateBanner() {
     const banner = $('authBanner');
     if (!banner) return;
@@ -528,7 +674,7 @@ if (typeof document !== 'undefined') (function () {
     else banner.hidden = true;
   }
   function guard(view) {
-    if ((view === 'account' || view === 'dashboard') && ready && !user) {
+    if ((view === 'account' || view === 'dashboard' || view === 'upload') && ready && !user) {
       pendingMsg = 'Sign in to continue.';
       location.hash = '#/auth/signin';
       return false;
@@ -538,7 +684,9 @@ if (typeof document !== 'undefined') (function () {
   function show(view, parts) {
     if (view === 'auth') {
       const sub = TITLES[parts[1]] ? parts[1] : 'signin';
-      document.querySelectorAll('form[data-form]').forEach(function (f) { f.hidden = f.dataset.form !== sub; });
+      if (sub === 'checkemail' && !pendingEmail) { location.hash = '#/auth/register'; return; }
+      document.querySelectorAll('[data-form]').forEach(function (f) { f.hidden = f.dataset.form !== sub; });
+      $('doneEmail').textContent = pendingEmail;
       $('authTitle').textContent = TITLES[sub];
       say('authMsg', pendingMsg, 'err');
       pendingMsg = '';
@@ -548,7 +696,7 @@ if (typeof document !== 'undefined') (function () {
     }
     if (view === 'account') { say('profMsg', ''); if (user && !profile) loadProfile(); else fillProfile(); }
   }
-  window.FFAuth = { guard: guard, show: show, remember: function (h) { returnTo = h; }, user: function () { return user; } };
+  window.FFAuth = { client: function () { return sb; }, guard: guard, show: show, remember: function (h) { returnTo = h; }, user: function () { return user; } };
 
   renderAcct();
   if (sb) {
@@ -571,8 +719,8 @@ if (typeof document !== 'undefined') (function () {
 
 /* ---------- Part 4: page switching (#/library, #/calculator, #/shop) ---------- */
 if (typeof document !== 'undefined') (function () {
-  const VIEWS = ['home', 'library', 'calculator', 'shop', 'auth', 'account', 'dashboard'];
-  const TITLES = { home: 'FilamentFlow – 3D-printing platform', library: 'Model Library – FilamentFlow', calculator: 'Print Calculator – FilamentFlow', shop: 'Print Shop – FilamentFlow', auth: 'Account – FilamentFlow', account: 'Your profile – FilamentFlow', dashboard: 'Creator dashboard – FilamentFlow' };
+  const VIEWS = ['home', 'library', 'calculator', 'studio', 'settings', 'auth', 'account', 'dashboard', 'upload'];
+  const TITLES = { home: 'Orbrant – 3D-printing platform', library: 'Orbrant Model Library', calculator: 'Orbrant Calculator', studio: 'Orbrant Studio', settings: 'Settings – Orbrant', auth: 'Account – Orbrant', account: 'User Profile – Orbrant', dashboard: 'Creator dashboard – Orbrant', upload: 'Upload a model – Orbrant' };
   function route() {
     const hash = location.hash;
     if (hash && hash.indexOf('#/') !== 0) return; // ignore other anchors such as the skip link
@@ -587,11 +735,17 @@ if (typeof document !== 'undefined') (function () {
     document.querySelectorAll('#nav a[data-link]').forEach(function (a) {
       if (a.dataset.link === view) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
     });
-    if (view === 'library') window.FFLibrary.show(parts[1] || null);
+    if (view === 'library') window.FFLibrary.show(parts);
+    if (view === 'dashboard' && window.FFAuth && window.FFAuth.user()) window.FFLibrary.loadMine();
     if (window.FFAuth) window.FFAuth.show(view, parts);
     document.title = TITLES[view];
     window.scrollTo(0, 0);
   }
+  document.getElementById('clearCalc').addEventListener('click', function () {
+    if (window.FFCalcReset) window.FFCalcReset();
+    document.getElementById('setMsg').textContent = 'Saved calculator data cleared and defaults restored.';
+  });
+  document.getElementById('setSignOut').addEventListener('click', function () { document.getElementById('signOutBtn').click(); });
   window.addEventListener('hashchange', route);
   window.FFRoute = route;
   route();
