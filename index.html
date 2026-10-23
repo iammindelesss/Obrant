@@ -3,30 +3,40 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Orbrant – 3D-printing platform</title>
-<meta name="description" content="Orbrant: a 3D-printing platform with a model library, a print cost calculator and, soon, a desktop app.">
-<meta property="og:title" content="Orbrant – 3D-printing platform">
-<meta property="og:description" content="Browse and share 3D-printable models and price your prints with the Orbrant Calculator.">
+<title>Obryth – 3D-printing platform</title>
+<meta name="description" content="Obryth: a 3D-printing platform with a model library, a print cost calculator and, soon, a desktop app.">
+<meta property="og:title" content="Obryth – 3D-printing platform">
+<meta property="og:description" content="Browse and share 3D-printable models and price your prints with the Obryth Calculator.">
 <meta property="og:type" content="website">
-<link rel="stylesheet" href="style.css?v=6">
+<link rel="stylesheet" href="style.css?v=7">
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
 <header class="site-header">
   <div class="wrap bar">
-    <a class="brand" href="#/">Orbrant</a>
+    <a class="brand" href="#/">Obryth</a>
     <button class="menu-btn" id="menuBtn" type="button" aria-expanded="false" aria-controls="nav">Menu</button>
     <nav id="nav" class="nav" aria-label="Main">
       <a href="#/" data-link="home">Home</a>
       <a href="#/calculator" data-link="calculator">Calculator</a>
       <a href="#/library" data-link="library">Model Library</a>
-      <a href="#/studio" data-link="studio">Orbrant Studio</a>
+      <a href="#/studio" data-link="studio">Obryth Studio</a>
       <a href="#/settings" data-link="settings">Settings</a>
       <span class="acct" id="acct">
         <span class="guest-only"><a class="btn" href="#/auth/signin">Sign in</a> <a class="btn primary" href="#/auth/register">Create account</a></span>
+        <span class="user-only bell-wrap">
+          <button class="bell" id="bellBtn" type="button" aria-label="Notifications" aria-expanded="false" aria-controls="bellPanel">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+            <span class="badge-count" id="bellCount" hidden>0</span>
+          </button>
+          <div class="bell-panel" id="bellPanel" role="dialog" aria-label="Notifications" hidden>
+            <div class="bell-head"><strong>Notifications</strong><button class="linkbtn" id="markAll" type="button">Mark all as read</button></div>
+            <div id="bellList"></div>
+          </div>
+        </span>
         <details class="user-only menu" id="acctMenu">
           <summary class="btn" id="acctName">Account</summary>
-          <div class="menu-list"><a href="#/account">User Profile</a><a href="#/dashboard">Creator dashboard</a><button type="button" id="signOutBtn">Sign out</button></div>
+          <div class="menu-list"><a href="#/account">User Profile</a><a href="#/people">Find creators</a><a href="#/dashboard">Creator dashboard</a><button type="button" id="signOutBtn">Sign out</button></div>
         </details>
       </span>
     </nav>
@@ -39,7 +49,7 @@
   <section class="hero">
     <div class="wrap">
       <h1>Find it. Print it. Price it.</h1>
-      <p>Orbrant is a home for 3D printing: a model library to browse and share, a calculator to price your prints, and a desktop app, Orbrant Studio, in development. Pick where to start.</p>
+      <p>Obryth is a home for 3D printing: a model library to browse and share, a calculator to price your prints, and a desktop app, Obryth Studio, in development. Pick where to start.</p>
       <p class="hero-actions guest-only"><a class="btn primary" href="#/auth/register">Create account</a> <a class="btn" href="#/auth/signin">Sign in</a></p>
       <p class="hero-actions user-only"><a class="btn primary" href="#/account">User Profile</a> <a class="btn" href="#/dashboard">Creator dashboard</a></p>
     </div>
@@ -59,7 +69,7 @@
     </a>
     <a class="tile" href="#/studio">
       <span class="status">Coming soon</span>
-      <h2>Orbrant Studio</h2>
+      <h2>Obryth Studio</h2>
       <p>A separate desktop application. No release exists yet, so there is nothing to download.</p>
       <span class="go">Learn more →</span>
     </a>
@@ -69,8 +79,8 @@
 <!-- ===== MODEL LIBRARY ===== -->
 <div data-view="library" hidden><div class="wrap page">
   <div class="page-head">
-    <div><h1>Orbrant Model Library</h1><p class="lead">Browse and download 3D models shared by creators.</p></div>
-    <a class="btn primary" href="#/upload">Upload a model</a>
+    <div><h1>Obryth Model Library</h1><p class="lead">Browse and download 3D models shared by creators.</p></div>
+    <div class="head-actions"><a class="btn" href="#/people">Find creators</a> <a class="btn primary" href="#/upload">Upload a model</a></div>
   </div>
   <div id="listView">
     <div class="toolbar">
@@ -78,9 +88,13 @@
       <input id="q" type="search" placeholder="Search title, description or tag">
       <label class="sr" for="cat">Category</label>
       <select id="cat"><option value="all">All categories</option></select>
+      <label class="sr" for="ft">File type</label>
+      <select id="ft"><option value="all">All file types</option><option value="stl">STL</option><option value="3mf">3MF</option><option value="obj">OBJ</option><option value="step">STEP</option></select>
+      <label class="sr" for="lt">Free or premium</label>
+      <select id="lt"><option value="all">Free and premium</option><option value="free">Free only</option><option value="premium">Premium only</option></select>
       <label class="sr" for="sort">Sort by</label>
       <select id="sort">
-        <option value="newest">Newest</option><option value="oldest">Oldest</option><option value="title">Title A–Z</option>
+        <option value="newest">Newest</option><option value="downloads">Most downloaded</option><option value="popular">Most popular</option><option value="oldest">Oldest</option><option value="title">Title A–Z</option>
         <option value="free">Free first</option><option value="premium">Premium first</option>
       </select>
     </div>
@@ -97,7 +111,7 @@
 <!-- ===== PRINT CALCULATOR ===== -->
 <div data-view="calculator" hidden>
   <section class="wrap intro">
-    <h1>Orbrant Calculator</h1>
+    <h1>Obryth Calculator</h1>
     <p>Know what each print really costs. Work out material, power and extra costs for a 3D print, then set a selling price and see your real profit margin. Everything is calculated in your browser.</p>
   </section>
 
@@ -255,11 +269,11 @@
   </section>
 </div>
 
-<!-- ===== ORBRANT STUDIO ===== -->
+<!-- ===== OBRYTH STUDIO ===== -->
 <div data-view="studio" hidden><div class="wrap page">
   <span class="status">Coming soon</span>
-  <h1>Orbrant Studio</h1>
-  <p class="lead">Orbrant Studio is a separate desktop application, distinct from this website. There is no release yet, so there is nothing to download.</p>
+  <h1>Obryth Studio</h1>
+  <p class="lead">Obryth Studio is a separate desktop application, distinct from this website. There is no release yet, so there is nothing to download.</p>
   <p><button class="btn primary" type="button" disabled>Download (not available yet)</button></p>
   <p class="note">A download link will appear here once a real, verified release exists.</p>
 </div></div>
@@ -271,6 +285,16 @@
     <p class="note">Your calculator inputs are saved in this browser only.</p>
     <button class="btn" id="clearCalc" type="button">Clear saved calculator data</button>
     <p class="note" id="setMsg" role="status"></p></div>
+  <div class="card user-only"><h2>Notifications</h2>
+    <p class="note">Choose which events add to your notification bell.</p>
+    <label class="check"><input type="checkbox" id="np_comments"> Comments on my models</label>
+    <label class="check"><input type="checkbox" id="np_favourites"> Favourites on my models</label>
+    <label class="check"><input type="checkbox" id="np_follows"> New followers</label>
+    <p class="note" id="prefMsg" role="status"></p></div>
+  <div class="card user-only"><h2>Password</h2>
+    <p class="note">We’ll email you a secure link to choose a new password.</p>
+    <button class="btn" id="pwReset" type="button">Email me a reset link</button>
+    <p class="note" id="pwMsg" role="status"></p></div>
   <div class="card user-only"><h2>Account</h2>
     <p class="note" id="setEmail"></p>
     <a class="btn" href="#/account">Edit User Profile</a> <button class="btn" id="setSignOut" type="button">Sign out</button></div>
@@ -306,6 +330,32 @@
     <div class="field"><label for="rmPass">Password</label><div class="control"><input id="rmPass" type="password" autocomplete="current-password"></div></div>
     <p><button class="btn danger" id="rmRemove" type="button">Remove model permanently</button> <button class="btn" id="rmDismiss" type="button">Keep model (dismiss report)</button></p>
   </div>
+</div></div>
+
+<!-- ===== PUBLIC PROFILE ===== -->
+<div data-view="profile" hidden><div class="wrap page">
+  <p class="msg" id="pfMsg" role="status" hidden></p>
+  <div id="pfBody" hidden>
+    <div class="pf-head">
+      <div id="pfAvatar"></div>
+      <div class="pf-info"><h1 id="pfName"></h1><p class="note" id="pfUser"></p><p id="pfBio"></p><p class="note" id="pfJoined"></p></div>
+      <div id="pfActions"></div>
+    </div>
+    <div class="stats" id="pfStats"></div>
+    <h2>Published models</h2>
+    <div class="model-grid" id="pfGrid"></div>
+    <p class="empty" id="pfEmpty" hidden>No published models yet.</p>
+  </div>
+</div></div>
+
+<!-- ===== FIND CREATORS ===== -->
+<div data-view="people" hidden><div class="wrap page narrow">
+  <h1>Find creators</h1>
+  <label class="sr" for="pq">Search creators</label>
+  <div class="control"><input id="pq" type="search" placeholder="Search by username or display name" maxlength="40" autocomplete="off"></div>
+  <p class="count" id="pCount" aria-live="polite">Type at least 2 characters to search.</p>
+  <p class="msg err" id="pErr" hidden></p>
+  <div id="pList"></div>
 </div></div>
 
 <!-- ===== ACCOUNT: sign in / register / forgot / reset ===== -->
@@ -356,6 +406,7 @@
       <span id="avatarPh" class="avatar ph" aria-hidden="true">?</span>
       <div><label for="avatarFile">Profile picture</label><input id="avatarFile" type="file" accept="image/png,image/jpeg,image/webp"><p class="note">PNG, JPG or WebP, up to 2 MB.</p></div>
     </div>
+    <div class="field"><label for="dispName">Display name (optional)</label><div class="control"><input id="dispName" type="text" maxlength="40" autocomplete="name"></div></div>
     <div class="field"><label for="username">Username (3–20 letters, numbers or _)</label><div class="control"><input id="username" type="text" autocomplete="username" maxlength="20"></div></div>
     <div class="field"><label for="bio">Short bio</label><div class="control"><textarea id="bio" maxlength="280"></textarea></div></div>
     <button class="btn primary" type="submit">Save profile</button>
@@ -368,15 +419,16 @@
   
   <div class="dash">
     <div class="card"><h2>Your listings</h2><p class="msg" id="dashMsg" role="status" hidden></p><div id="myListings"></div><p><a class="btn primary" href="#/upload">Upload a model</a></p></div>
-    <div class="card"><h2>Saved models</h2><p class="empty">Nothing saved yet.</p></div>
+    <div class="card"><h2>Favourites</h2><div id="myFavs"></div></div>
+    <div class="card dash-wide"><h2>Download history</h2><div id="myDownloads"></div><p><button class="btn" id="clearHistory" type="button">Clear download history</button></p></div>
   </div>
 </div></div>
 </main>
 
-<footer class="site-footer"><div class="wrap">Orbrant · Calculations run in your browser. Accounts are provided by Supabase. Estimates only, not financial advice.</div></footer>
+<footer class="site-footer"><div class="wrap">Obryth · Calculations run in your browser. Accounts are provided by Supabase. Estimates only, not financial advice.</div></footer>
 
 <!-- Official Supabase client, pinned version (2.76.0). Needs an internet connection. -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.76.0/dist/umd/supabase.js"></script>
-<script src="script.js?v=6"></script>
+<script src="script.js?v=7"></script>
 </body>
 </html>

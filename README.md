@@ -1,11 +1,11 @@
-# Orbrant
+# Obryth
 
-Orbrant is a 3D-printing platform made of plain HTML, CSS and JavaScript, hosted free on GitHub Pages, with accounts, the Model Library and file storage provided by Supabase.
+Obryth is a 3D-printing platform made of plain HTML, CSS and JavaScript, hosted free on GitHub Pages, with accounts, the model library and file storage provided by Supabase.
 
-- **Orbrant Calculator**: filament, electricity and other costs, selling price, profit and margin.
-- **Orbrant Model Library**: browse, search, upload, report and download 3D models (STL, 3MF, OBJ, STEP).
-- **Orbrant Studio**: a separate desktop app. No release exists, so the site shows a Coming Soon page and no download.
-- **Settings** and **User Profile** (username, bio, picture).
+- **Obryth Calculator**: filament, electricity and other costs, selling price, profit and margin.
+- **Obryth Model Library**: browse, search, upload, favourite, comment on, report and download 3D models (STL, 3MF, OBJ, STEP).
+- **Obryth Studio**: a separate desktop app. No release exists, so the site shows a Coming Soon page and no download.
+- **User Profile**, public creator profiles, follows, notifications and **Settings**.
 
 Premium listings can be created and shown with a price, but **payments are not set up**: nobody can buy, and premium files cannot be downloaded.
 
@@ -13,25 +13,29 @@ Premium listings can be created and shown with a price, but **payments are not s
 
 | File | Purpose |
 | --- | --- |
-| `index.html` | All pages (Home, Calculator, Model Library, Orbrant Studio, Settings, account pages, Upload) |
-| `style.css` | Styling |
-| `script.js` | Calculator, library, uploads, accounts, page switching. Supabase settings are at the top. |
+| `index.html` | All pages |
+| `style.css` | Styling (dark theme) |
+| `script.js` | Calculator, library, uploads, accounts, notifications, comments, profiles, page switching. Supabase settings are at the top. |
 | `README.md` | This guide |
 | `supabase-migration.sql` | Paste into the Supabase SQL editor. **Not uploaded to GitHub.** |
-| `moderation-function.ts` | Pasted into Supabase Edge Functions (see below). **Not uploaded to GitHub.** |
+| `moderation-function.ts` | Pasted into Supabase Edge Functions. **Not uploaded to GitHub.** |
 
-All links and files use relative paths, so the site works under any repository name.
+Links and files use relative paths, so the site works at its current address. The repository name and site address were not changed.
 
-## Repository name
+## Setup (in this order)
 
-Your repository is currently named **Obrant** (no "r"), so the site is at `https://iammindelesss.github.io/Obrant/`. The brand is **Orbrant**. If you want the repository to match, rename it: GitHub repo → **Settings → General → Repository name** → `orbrant` → Rename. The site then moves to `https://iammindelesss.github.io/orbrant/`, and the old address stops working. Whichever name you end up with, do step 2 below with that exact address.
+1. **Run the migration.** Supabase → **SQL Editor → New query**, paste all of `supabase-migration.sql`, click **Run**. It is safe to run again and keeps existing data. It now also creates comments, favourites, follows, download history, notifications and notification preferences, with security rules on each, plus download/favourite counters on models and a `display_name` on profiles. If it stops with a message about a different `models` or `reports` table, nothing was changed; ask for help. Policy names still start with "orbrant": they are database identifiers, and keeping them means re-running replaces the old policies instead of duplicating them.
+2. **Upload the 4 site files** to GitHub (replace the old ones). Wait a couple of minutes and hard-refresh (Ctrl+Shift+R). The browser console (F12) should show `Obryth build 7`.
+3. **Reports email (only if not done yet):** follow "Reports and removal" below. The function's emails now say "Obryth"; re-paste `moderation-function.ts` into your existing `moderation` function and redeploy to get the new wording.
 
-## Setup (do in this order)
+Nothing needs changing in Supabase Authentication URLs, Storage buckets or the key.
 
-1. **Run the migration.** Supabase dashboard → **SQL Editor → New query**, paste all of `supabase-migration.sql`, click **Run**. It creates or repairs the `profiles` table (fixing "Could not find the table 'public.profiles'" and the missing `bio` column), the `models` table, the storage buckets and all security rules, and refreshes the API schema cache. It keeps existing data and is safe to run again. If it stops with a message about a different `models` table, nothing was changed; ask for help.
-2. **Fix the sign-in redirect addresses.** Supabase → **Authentication → URL Configuration**: set **Site URL** to your live address (for example `https://iammindelesss.github.io/Obrant/`) and add the same address under **Redirect URLs**. Email confirmation and password-reset links use this.
-3. **Check the key.** `script.js` already contains your project URL and publishable key. Never put a `sb_secret_` or `service_role` key in the site.
-4. **Upload the 4 files** to the repository (Add file → Upload files), replacing the old ones. Wait a couple of minutes and hard-refresh (Ctrl+Shift+R). The browser console (F12) should show `Orbrant build 5`.
+## Things that behave differently now
+
+- **Downloading requires a signed-in account.** This makes download counts and history real and stops anonymous scraping. Storage enforces it, not just the button.
+- **Download counts** go up once per person per model per 24 hours, only after the file download has started. Clearing your history never lowers a model's count.
+- **Notifications** appear for comments on your models, favourites on your models and new followers (never for your own actions; repeating an action cannot create a duplicate). They refresh on every page change and every minute; there is no realtime push.
+- Uploads still go live immediately; reports are the safety net.
 
 ## Reports and removal (no pre-approval)
 
@@ -56,33 +60,31 @@ How it is protected: the link holds a random 64-character token, and only a hash
 
 ## How downloads and privacy work
 
-- Model files live in a **private** bucket. Visitors can download a file only when a **published, free** listing points at it; the site asks Supabase for a link that expires after 60 seconds.
-- Premium files cannot be read by anyone but their owner. Real premium sales need a payment provider and a server-side check (for example a Supabase Edge Function), which are not built.
-- Preview images and profile pictures are public. Profiles contain only username, bio and picture, never email addresses.
-- Creators can change or delete only their own rows and files. The database and storage rules enforce this, not the buttons.
+- Model files live in a **private** bucket. A signed-in visitor can download a file only when a **published, free** listing points at it; the site asks Supabase for a link that expires after 60 seconds.
+- Premium files can be read only by their owner. Real premium sales need a payment provider and a server-side check, which are not built.
+- Preview images and profile pictures are public. Public profile data is only username, display name, bio, picture and join date, never email addresses.
+- Creators can change or delete only their own rows and files, and can edit only title, description, category, tags and thumbnail; status, price, counters and owner are locked at the database level. Comments can be edited only by their author and deleted by the author or the model's owner. Notifications, favourites, download history and preferences are private to each user. Rules are enforced by the database, not the buttons.
 
-## Test checklist (do these on the live site)
+## Test checklist (do these on the live site, with two accounts)
 
-1. Sign up, confirm the email, sign in, refresh (you stay signed in).
-2. User Profile: save a username and bio, refresh, and check they stay.
-3. Signed out, open `#/upload` (it asks you to sign in).
-4. Signed in, upload a small STL with an image. Check it appears in **Storage** (`model-files`, `model-previews`) and as a `published` row in **Table Editor → models** with your user ID as `creator_id`.
-5. Check it appears in the library, search and category filter find it, and the **Download** button gives back the same file.
-6. Try a `.zip`, a file over 50 MB and a premium listing with no price; all should be refused.
-7. With a second account, check you cannot change or delete the first account's listing.
-8. Make a premium listing and check there is no working download.
-9. Report a model from a second account and follow the email link (see Reports and removal).
+1. Sign in; User Profile: save a username, display name and bio; refresh; they stay.
+2. Account A uploads a small STL with an image. Check the files in **Storage** and the `published` row in **Table Editor → models**.
+3. Account B opens the model: comment, favourite it, download it. Check the download count goes 0 → 1, downloading again does not raise it, and Download history on B's dashboard lists it.
+4. Account A's bell shows the comment and favourite. Mark one read, then mark all read. Turn off "Comments" in A's Settings, comment again as B, and check no new notification appears.
+5. B follows A from A's public profile (`#/u/username`); A gets a "started following you" notification. Find A with **Find creators**.
+6. B edits and deletes their own comment; B cannot edit A's comment. A can delete B's comment on A's model.
+7. Signed out: cannot comment, favourite, follow or download (each asks you to sign in).
+8. Premium listing: shows a price, has no working purchase or download.
+9. Report a model and follow the email link (see Reports and removal).
+10. Library: search by title, tag and creator name; try the file type, free/premium and sort controls.
 
 ## Test report for this version
 
-- **Server function:** 24 logic checks run against a fake in-memory database (not real Supabase or Resend): sign-in required to report, one report per person per model, daily limit, token hashing, wrong token/password refused, 8-attempt lock, removal deletes the row and both files, dismiss keeps the model, HTML-escaped emails, the email link uses your `SITE_URL`.
-- **Done by me, against a stand-in for Supabase (not the real service):** report button and removal page, uploads going live, page switching and the guards, the account menu, library listing, search/filter/sort/load-more calls, detail page, free download request, premium shown without download, upload validation, upload success, upload failure cleanup and no double-submit, creator listings and delete, Settings, mobile layout and console errors.
-- **Not tested by me:** the real Supabase project (sign-in, profile saves, uploads, storage, downloads, the SQL and the security rules). I had no access, so none of that is verified until you run the checklist above. Real-service checks 1–9 are all untested, and the Edge Function, the Resend email and the reports table have never run for real.
-- **Not built:** 3D preview, byte-level upload progress (the page shows stages), creator profile pages, payments, saved favourites, reporting, an Orbrant Studio download.
-
-## Run locally / update
-
-Serve the folder (`python3 -m http.server 8000`, then open http://localhost:8000) and add that address to Supabase Redirect URLs if you want email links to work locally. To update the live site, upload changed files to GitHub and hard-refresh.
+- **Server function:** 24 logic checks against a fake in-memory database (not real Supabase or Resend) passed.
+- **Browser checks against a stand-in for Supabase (not the real service):** 103 checks passed, covering page switching, the notification bell (badge, mark one/all read, empty state, navigation), comments (post, edit, delete, permissions), favourites, download order (signed link first, then the server count), profiles and follows, creator search, library filters and sorts, dashboard, Settings, the profile editor, no old brand names visible on 12 pages, no sideways scrolling on 9 pages at phone width, and no console errors.
+- **Found and fixed during testing:** a wide file picker on the phone profile page.
+- **Not tested by me:** the real Supabase project. The new SQL (tables, triggers, security rules, the download function) has never been run, and I had no way to syntax-check it. Sign-in, uploads, storage, downloads, notifications created by database triggers, and every security rule are unverified until you run the checklist above.
+- **Not built in this version:** replies to comments, reporting individual comments or profiles, editing a model's details or thumbnail in the site (the database allows it), recently viewed models, Recently Added and Popular strips, follower and following lists, a Following feed, saved calculator presets, account deletion, profile visibility settings, creator view-count analytics, realtime notifications, 3D preview and payments.
 
 ## Calculator formulas
 
